@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "129167047675",
+    "project_id": "financialresume0",
+    "storage_bucket": "financialresume0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:129167047675:android:615799635e252330c7e95e",
+        "android_client_info": {
+          "package_name": "com.example.financialresume"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCK2xMB0EuJ6LILisW0d6fjZpbHV6WGWUk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
