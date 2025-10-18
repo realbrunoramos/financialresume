@@ -659,14 +659,14 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     }
   }
 
-  // Método para alternar visibilidade das opções de filtro
+
   void _toggleFilterOptions() {
     setState(() {
       _showFilterOptions = !_showFilterOptions;
     });
   }
 
-  // Widget para os botões de filtro circulares
+
   Widget _buildFilterSelector() {
     if (!_showFilterOptions || _processedImagePath == null) {
       return SizedBox.shrink();
@@ -715,7 +715,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     );
   }
 
-  // Widget para cada botão de filtro circular
   Widget _buildFilterButton(int filterIndex) {
     final bool isSelected = _selectedFilter == filterIndex;
     final String label = _filterOptions[filterIndex];
@@ -959,7 +958,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       final imageBytes = await imageFile.readAsBytes();
       final imageBase64 = base64Encode(imageBytes);
 
-      String apiKey = "AIzaSyABII33nClj-Qu3oqZAiQQgOEpkZtY4PHo";
+      String apiKey = "<CHAVE DA API DO GEMINI>";
       Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
 
       final prompt = """Recebeste uma imagem de um documento financeiro (ex.: fatura, recibo, comprovativo de pagamento).
