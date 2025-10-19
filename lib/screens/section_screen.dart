@@ -29,18 +29,13 @@ class _SectionScreenState extends State<SectionScreen> {
   void initState() {
     super.initState();
     _financialData = _loadFinancialData();
+
   }
 
   Future<Map<String, dynamic>> _loadFinancialData() async {
-
     final transactions = await dbService.getAllTransactions(widget.section.id);
-
     final balance = transactions.fold<double>(0,(sum, t) => sum + (t.isCredit ? t.amount : -t.amount));
-
     final reservedAmounts = await dbService.getReservedAmounts(widget.section.id);
-
-
-
     final totalReserved = reservedAmounts.fold<double>(
       0.0, (sum, r) => sum + (r.amount is int ? (r.amount as int).toDouble() : r.amount),
     );
@@ -70,7 +65,146 @@ class _SectionScreenState extends State<SectionScreen> {
     });
   }
 
+  List<Transaction> _sortInvoicesByDueDate(List<Transaction> invoices) {
+    final now = DateTime.now();
 
+    return invoices..sort((a, b) {
+      // Se ambas têm data de vencimento
+      if (a.dueDate != null && b.dueDate != null) {
+        final daysA = a.dueDate!.difference(now).inDays;
+        final daysB = b.dueDate!.difference(now).inDays;
+
+        // Faturas vencidas vêm primeiro (valores negativos menores primeiro)
+        if (daysA < 0 && daysB < 0) {
+          return daysA.compareTo(daysB); // Mais vencida primeiro
+        }
+        // Faturas vencidas vêm antes das não vencidas
+        if (daysA < 0) return -1;
+        if (daysB < 0) return 1;
+        // Ambas não vencidas - mais próxima primeiro
+        return daysA.compareTo(daysB);
+      }
+
+      // Se apenas uma tem data de vencimento, ela vem primeiro
+      if (a.dueDate != null) return -1;
+      if (b.dueDate != null) return 1;
+
+      // Se nenhuma tem data de vencimento, ordena por data de emissão
+      return b.date.compareTo(a.date);
+    });
+  }
+
+  void _showInvoiceDetails(Transaction invoice) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.white,
+        title: Text(
+          invoice.entity.isNotEmpty ? invoice.entity : 'Fatura',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Número de Série
+              if (invoice.numeroSerie != null && invoice.numeroSerie!.isNotEmpty && invoice.numeroSerie != 'UNKNOWN')
+                _buildDetailRow('Número de Fatura:', invoice.numeroSerie!),
+
+              // Valor
+              _buildDetailRow(
+                'Valor:',
+                '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(invoice.amount)}',
+              ),
+
+              // Data de Emissão
+              if (invoice.date != null)
+                _buildDetailRow(
+                  'Data de Emissão:',
+                  DateFormat('dd/MM/yyyy').format(invoice.date),
+                ),
+
+              // Data Limite
+              if (invoice.dueDate != null)
+                _buildDetailRow(
+                  'Data Limite:',
+                  '${DateFormat('dd/MM/yyyy').format(invoice.dueDate!)} '
+                      '(${_getDueDateStatus(invoice.dueDate!)})',
+                ),
+
+              // Referência do Mês
+              if (invoice.monthRef != null && invoice.monthRef!.isNotEmpty)
+                _buildDetailRow('Referência:', invoice.monthRef!),
+
+              if (invoice.metodoPagamento != null && invoice.metodoPagamento!.isNotEmpty && invoice.metodoPagamento != 'UNKNOWN')
+                _buildDetailRow('Pagamento:', invoice.metodoPagamento!.split("/").length == 2 ? "Entidade: ${invoice.metodoPagamento!.split("/")[0]}\nReferência: ${invoice.metodoPagamento!.split("/")[1]}"
+                    : "IBAN: ${invoice.metodoPagamento!}"),
+              // Descrição
+              if (invoice.description.isNotEmpty)
+                _buildDetailRow('Descrição:', invoice.description),
+            ].where((element) => element != null).cast<Widget>().toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Fechar', style: TextStyle(color: AppColors.dark)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: AppColors.grey.shade700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getDueDateStatus(DateTime dueDate) {
+    final now = DateTime.now();
+    final difference = dueDate.difference(now);
+
+    if (difference.inDays < 0) {
+      return 'Vencida há ${difference.inDays.abs()} dias';
+    } else if (difference.inDays == 0) {
+      return 'Vence hoje';
+    } else if (difference.inDays == 1) {
+      return 'Vence amanhã';
+    } else {
+      return 'Vence em ${difference.inDays} dias';
+    }
+  }
 
   Future<void> _showInvoiceOptions(Transaction invoice) async {
     return showDialog<void>(
@@ -78,66 +212,89 @@ class _SectionScreenState extends State<SectionScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: AppColors.white,
-          title: Text('${invoice.entity}'),
+          title: Text(
+            'Ações da Fatura',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: Text('O que deseja fazer com esta fatura?'),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('Excluir'),
-              onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Confirmar Exclusão'),
-                    content: Text('Tem certeza que deseja excluir esta fatura?'),
-                    actions: [
-                      TextButton(
-                        child: Text('Cancelar'),
-                        onPressed: () => Navigator.of(context).pop(false),
-                      ),
-                      TextButton(
-                        child: Text('Excluir'),
-                        onPressed: () => Navigator.of(context).pop(true),
-                      ),
-                    ],
+          actions: [
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    child: Text('Editar'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TransactionFormScreen(
+                            transaction: invoice,
+                            sectionId: widget.section.id,
+                          ),
+                        ),
+                      ).then((_) => _refreshData());
+                    },
                   ),
-                );
-                if (confirm == true) {
-                  await dbService.deleteTransaction(invoice.id);
-                  _refreshData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fatura excluída com sucesso!')),
-                    );
-                  }
-                }
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: Text('Editar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TransactionFormScreen(
-                      transaction: invoice,
-                      sectionId: widget.section.id,
-                    ),
+              
+                  SizedBox(width: 8),
+              
+                  TextButton(
+                    child: Text('Excluir'),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _confirmDeleteInvoice(invoice);
+                    },
                   ),
-                ).then((_) => _refreshData());
-              },
+              
+                  SizedBox(width: 8),
+              
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancelar', style: TextStyle(color: AppColors.grey)),
+                  ),
+                ],
+              ),
             ),
           ],
+
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteInvoice(Transaction invoice) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar Exclusão'),
+        content: Text('Tem certeza que deseja excluir esta fatura?'),
+        actions: [
+          TextButton(
+            child: Text('Cancelar'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteTransaction(invoice.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fatura excluída com sucesso!'),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showTransactionActions(Transaction transaction) async {
@@ -167,33 +324,8 @@ class _SectionScreenState extends State<SectionScreen> {
             TextButton(
               child: Text('Excluir'),
               onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Confirmar Exclusão'),
-                    content: Text('Tem certeza que deseja excluir esta transação?'),
-                    actions: [
-                      TextButton(
-                        child: Text('Cancelar'),
-                        onPressed: () => Navigator.of(context).pop(false),
-                      ),
-                      TextButton(
-                        child: Text('Excluir'),
-                        onPressed: () => Navigator.of(context).pop(true),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await dbService.deleteTransaction(transaction.id);
-                  _refreshData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Transação excluída com sucesso!')),
-                    );
-                  }
-                }
                 Navigator.of(context).pop();
+                await _confirmDeleteTransaction(transaction);
               },
             ),
             TextButton(
@@ -206,6 +338,39 @@ class _SectionScreenState extends State<SectionScreen> {
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteTransaction(Transaction transaction) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar Exclusão'),
+        content: Text('Tem certeza que deseja excluir esta transação?'),
+        actions: [
+          TextButton(
+            child: Text('Cancelar'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteTransaction(transaction.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transação excluída com sucesso!'),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _showReservedAmountActions(ReservedAmount reservedAmount) async {
@@ -235,33 +400,8 @@ class _SectionScreenState extends State<SectionScreen> {
             TextButton(
               child: Text('Excluir'),
               onPressed: () async {
-                final confirm = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text('Confirmar Exclusão'),
-                    content: Text('Tem certeza que deseja excluir esta reserva?'),
-                    actions: [
-                      TextButton(
-                        child: Text('Cancelar'),
-                        onPressed: () => Navigator.of(context).pop(false),
-                      ),
-                      TextButton(
-                        child: Text('Excluir'),
-                        onPressed: () => Navigator.of(context).pop(true),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirm == true) {
-                  await dbService.deleteReservedAmount(reservedAmount.id);
-                  _refreshData();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Reserva excluída com sucesso!')),
-                    );
-                  }
-                }
                 Navigator.of(context).pop();
+                await _confirmDeleteReservedAmount(reservedAmount);
               },
             ),
             TextButton(
@@ -276,6 +416,39 @@ class _SectionScreenState extends State<SectionScreen> {
     );
   }
 
+  Future<void> _confirmDeleteReservedAmount(ReservedAmount reservedAmount) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar Exclusão'),
+        content: Text('Tem certeza que deseja excluir esta reserva?'),
+        actions: [
+          TextButton(
+            child: Text('Cancelar'),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteReservedAmount(reservedAmount.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Reserva excluída com sucesso!'),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -283,7 +456,6 @@ class _SectionScreenState extends State<SectionScreen> {
         backgroundColor: AppColors.white,
         title: Text(widget.section.name),
         actions: [
-
           IconButton(
             icon: Icon(Icons.summarize, color: AppColors.dark),
             onPressed: () {
@@ -301,7 +473,6 @@ class _SectionScreenState extends State<SectionScreen> {
         color: AppColors.white,
         child: Column(
           children: [
-            // Seção de Faturas Pendentes
             Container(
               height: 120,
               padding: EdgeInsets.symmetric(vertical: 6),
@@ -327,7 +498,7 @@ class _SectionScreenState extends State<SectionScreen> {
                     );
                   }
 
-                  final invoices = snapshot.data!;
+                  final invoices = _sortInvoicesByDueDate(snapshot.data!);
                   return ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: EdgeInsets.symmetric(horizontal: 12),
@@ -335,13 +506,18 @@ class _SectionScreenState extends State<SectionScreen> {
                     itemBuilder: (context, index) {
                       final invoice = invoices[index];
                       return GestureDetector(
-                        onTap: () => _showInvoiceOptions(invoice),
+                        onTap: () => _showInvoiceDetails(invoice),
+                        onLongPress: () => _showInvoiceOptions(invoice),
                         child: Container(
                           width: 140,
                           margin: EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.grey.shade100,
+                            color: _getInvoiceColor(invoice),
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _getInvoiceBorderColor(invoice),
+                              width: 2,
+                            ),
                           ),
                           child: Padding(
                             padding: EdgeInsets.all(12),
@@ -351,7 +527,11 @@ class _SectionScreenState extends State<SectionScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.warning, color: AppColors.red, size: 14),
+                                    Icon(
+                                      _getInvoiceIcon(invoice),
+                                      color: _getInvoiceIconColor(invoice),
+                                      size: 14,
+                                    ),
                                     SizedBox(width: 4),
                                     Expanded(
                                       child: Text(
@@ -388,15 +568,12 @@ class _SectionScreenState extends State<SectionScreen> {
                                 SizedBox(height: 4),
                                 Text(
                                   invoice.dueDate != null
-                                      ? invoice.dueDate!.difference(DateTime.now()).inDays < 0
-                                      ? "Vencida há ${invoice.dueDate!.difference(DateTime.now()).inDays.abs()} dias"
-                                      : "Vence em ${invoice.dueDate!.difference(DateTime.now()).inDays} dias"
+                                      ? _getDueDateStatus(invoice.dueDate!)
                                       : "Prazo não definido",
                                   style: TextStyle(
-                                    color: invoice.dueDate != null && invoice.dueDate!.difference(DateTime.now()).inDays < 0
-                                        ? AppColors.red
-                                        : AppColors.green,
+                                    color: _getDueDateTextColor(invoice.dueDate),
                                     fontSize: 10,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
@@ -410,7 +587,6 @@ class _SectionScreenState extends State<SectionScreen> {
               ),
             ),
 
-            // Painel de Informações Financeiras
             Container(
               padding: EdgeInsets.all(16),
               color: AppColors.dark,
@@ -433,7 +609,6 @@ class _SectionScreenState extends State<SectionScreen> {
 
                   return Column(
                     children: [
-                      // Saldo Atual
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -453,7 +628,6 @@ class _SectionScreenState extends State<SectionScreen> {
                       ),
                       SizedBox(height: 8),
 
-                      // Total Reservado
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -469,7 +643,6 @@ class _SectionScreenState extends State<SectionScreen> {
                       ),
                       SizedBox(height: 8),
 
-                      // Valor Disponível
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -488,7 +661,6 @@ class _SectionScreenState extends State<SectionScreen> {
                       ),
                       SizedBox(height: 8),
 
-                      // Limite Diário
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -517,7 +689,6 @@ class _SectionScreenState extends State<SectionScreen> {
               ),
             ),
 
-            // Resto do código permanece igual...
             Container(
               height: 100,
               padding: EdgeInsets.symmetric(vertical: 8),
@@ -644,5 +815,75 @@ class _SectionScreenState extends State<SectionScreen> {
         child: Icon(Icons.add, color: AppColors.white),
       ),
     );
+  }
+
+  Color _getInvoiceColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey.shade100;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return Color(0xFFFFE6E6); // Vermelho muito claro para faturas vencidas
+    } else if (daysUntilDue <= 3) {
+      return Color(0xFFFFF4E6); // Laranja claro para faturas próximas
+    } else {
+      return AppColors.grey.shade100; // Cinza para faturas com prazo longo
+    }
+  }
+
+  Color _getInvoiceBorderColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey.shade300;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red; // Vermelho para faturas vencidas
+    } else if (daysUntilDue <= 3) {
+      return Colors.orange; // Laranja para faturas próximas
+    } else {
+      return AppColors.green; // Verde para faturas com prazo longo
+    }
+  }
+
+  IconData _getInvoiceIcon(Transaction invoice) {
+    if (invoice.dueDate == null) return Icons.receipt;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return Icons.warning; // Ícone de aviso para vencidas
+    } else if (daysUntilDue <= 3) {
+      return Icons.schedule; // Ícone de relógio para próximas
+    } else {
+      return Icons.receipt; // Ícone normal para outras
+    }
+  }
+
+  Color _getInvoiceIconColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red; // Vermelho para vencidas
+    } else if (daysUntilDue <= 3) {
+      return Colors.orange; // Laranja para próximas
+    } else {
+      return AppColors.green; // Verde para outras
+    }
+  }
+
+  Color _getDueDateTextColor(DateTime? dueDate) {
+    if (dueDate == null) return AppColors.grey;
+
+    final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red; // Vermelho para vencidas
+    } else if (daysUntilDue <= 3) {
+      return Colors.orange; // Laranja para próximas
+    } else {
+      return AppColors.green; // Verde para outras
+    }
   }
 }

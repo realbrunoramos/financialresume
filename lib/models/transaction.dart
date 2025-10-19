@@ -11,6 +11,8 @@ class Transaction {
   final String? monthRef;
   final DateTime? dueDate;
   final bool paid;
+  final String? numeroSerie;
+  final String? metodoPagamento;
 
   Transaction({
     required this.id,
@@ -25,6 +27,8 @@ class Transaction {
     this.monthRef,
     this.dueDate,
     this.paid = false,
+    this.numeroSerie,
+    this.metodoPagamento,
   });
 
   Transaction copyWith({
@@ -40,6 +44,8 @@ class Transaction {
     String? monthRef,
     DateTime? dueDate,
     bool? paid,
+    String? numeroSerie,
+    String? metodoPagamento,
   }) {
     return Transaction(
       id: id ?? this.id,
@@ -54,6 +60,8 @@ class Transaction {
       monthRef: monthRef ?? this.monthRef,
       dueDate: dueDate ?? this.dueDate,
       paid: paid ?? this.paid,
+      numeroSerie: numeroSerie ?? this.numeroSerie,
+      metodoPagamento: metodoPagamento ?? this.metodoPagamento,
     );
   }
 
@@ -71,6 +79,8 @@ class Transaction {
       'monthRef': monthRef,
       'dueDate': dueDate?.toIso8601String(),
       'paid': paid ? 1 : 0,
+      'numeroSerie': numeroSerie,
+      'metodoPagamento': metodoPagamento,
     };
   }
 
@@ -90,6 +100,8 @@ class Transaction {
       monthRef: map['monthRef'],
       dueDate: map['dueDate'] != null ? DateTime.tryParse(map['dueDate']) : null,
       paid: map['paid'] == 1,
+      numeroSerie: map['numeroSerie'],
+      metodoPagamento: map['metodoPagamento'],
     );
   }
 }

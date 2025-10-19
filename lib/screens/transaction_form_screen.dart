@@ -42,9 +42,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   bool _showMonthRef = false;
   String? _email;
   String? _password;
+  bool get _hasCredentials => _email != null && _password != null && _email!.isNotEmpty && _password!.isNotEmpty;
+  String? _idInvoiceRef;
+  String? _numSerie;
+  String? _paymentMethod;
   String _smtpServer = 'smtp.gmail.com';
   String _port = '587';
-  String? _idInvoiceRef;
 
   @override
   void initState() {
@@ -92,8 +95,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       });
     }
   }
-
-  bool get _hasCredentials => _email != null && _password != null && _email!.isNotEmpty && _password!.isNotEmpty;
 
   Future<void> _showCredentialsDialog() async {
     final emailCtrl = TextEditingController(text: _email);
@@ -578,16 +579,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Future<void> _scanDocument() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ScanFileScreen(sectionId: widget.sectionId,)),
+      MaterialPageRoute(builder: (context) => ScanFileScreen(sectionId: widget.sectionId)),
     );
 
     if (result != null && result is Map<String, dynamic>) {
-      final imagePath = result['imagePath'] as String?;
+      final imagePaths = result['imagePaths'] as List<String>? ?? [];
       final aiResult = result['aiAnalysis'] as Map<String, dynamic>?;
 
-      if (imagePath != null) {
+      if (imagePaths.isNotEmpty) {
         setState(() {
-          _receiptPaths.add(imagePath);
+          _receiptPaths.addAll(imagePaths);
         });
       }
 
@@ -601,6 +602,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         final mesAnoRef = aiResult['mes_ano_ref'] as String? ?? '';
         final eCredito = aiResult['é_crédito'] as String? ?? '0';
         final idsInvoiceRef = aiResult['ids_ref_fatura'] as String? ?? '';
+        final numeroSerie = aiResult['numero_serie'] as String? ?? '';
+        final metodoPagamento = aiResult['metodo_pagamento'] as String? ?? '';
+
         String? idInvoiceRef;
         if (tipo == 3) {
           idInvoiceRef = await _showInvoiceSelectionDialog(idsInvoiceRef);
@@ -613,6 +617,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           _selectedDocType = tipo.toString();
           _entityController.text = entidade;
           _descriptionController.text = descricao;
+          _numSerie = numeroSerie;
+          _paymentMethod = metodoPagamento;
+
           if (valorTotal != 'UNKNOWN') {
             _amountController.text = valorTotal;
           }
@@ -729,41 +736,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     );
   }
 
-  void _saveTransaction(String? idInvoiceRef, DateTime date) {
+  void _saveTransaction(String? idInvoiceRef, DateTime date) async{
     if (_formKey.currentState!.validate()) {
       if (_selectedDocType == '3' && idInvoiceRef != null && idInvoiceRef != 'UNKNOWN') {
         _mergeWithInvoice(idInvoiceRef, date);
         return;
       }
 
-      if (_selectedDocType == '2' && (_paidToggle ?? false) && _aiAnalysis?['pago'] == true) {
-        final transaction = Transaction(
-          id: widget.transaction?.id ?? DateTime.now().toString(),
-          amount: double.parse(_amountController.text),
-          entity: _entityController.text,
-          description: _descriptionController.text,
-          isCredit: _isCreditToggle,
-          date: _selectedDate,
-          receiptPaths: _receiptPaths,
-          sectionId: widget.sectionId,
-          docType: _selectedDocType,
-          monthRef: _monthRefController.text,
-          dueDate: _showDueDate ? _selectedDueDate : null,
-          paid: true,
-        );
-
-        if (widget.transaction == null) {
-          _dbService.addTransaction(transaction);
-        } else {
-          _dbService.updateTransaction(transaction);
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fatura marcada como paga sem comprovativo!')),
-        );
-        Navigator.pop(context);
-        return;
-      }
+      final bool isPaid = _selectedDocType == '2' ? (_paidToggle ?? false) : false;
 
       final transaction = Transaction(
         id: widget.transaction?.id ?? DateTime.now().toString(),
@@ -775,9 +755,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         receiptPaths: _receiptPaths,
         sectionId: widget.sectionId,
         docType: _selectedDocType,
-        monthRef: _monthRefController.text,
+        monthRef: _monthRefController.text.isNotEmpty ? _monthRefController.text : null,
         dueDate: _showDueDate ? _selectedDueDate : null,
-        paid: _paidToggle ?? false,
+        paid: isPaid,
+        numeroSerie: _numSerie,
+        metodoPagamento: _paymentMethod,
       );
 
       if (widget.transaction == null) {
@@ -1246,7 +1228,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 9,
                   fontWeight: FontWeight.w500,
                   color: isSelected ? Colors.white : Colors.black,
                 ),

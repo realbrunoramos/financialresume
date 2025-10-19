@@ -615,6 +615,8 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   void initState() {
     super.initState();
     _initCamera();
+
+
     _showScanAnimation = true;
 
     _scanTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
@@ -659,13 +661,11 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     }
   }
 
-
   void _toggleFilterOptions() {
     setState(() {
       _showFilterOptions = !_showFilterOptions;
     });
   }
-
 
   Widget _buildFilterSelector() {
     if (!_showFilterOptions || _processedImagePath == null) {
@@ -747,7 +747,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withAlpha(200),
                   blurRadius: 4,
                   offset: Offset(0, 2),
                 ),
@@ -778,7 +778,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     );
   }
 
-  // Botão para abrir/fechar opções de filtro
   Widget _buildFilterToggleButton() {
     if (_processedImagePath == null) return SizedBox.shrink();
 
@@ -798,7 +797,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     );
   }
 
-  // Indicador do filtro atual
   Widget _buildCurrentFilterIndicator() {
     if (_processedImagePath == null || _selectedFilter == -1) {
       return SizedBox.shrink();
@@ -810,7 +808,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
+          color: Colors.black.withAlpha(222),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -824,6 +822,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       ),
     );
   }
+
   Future<void> _initCamera() async {
     try {
       _cameras = await availableCameras();
@@ -881,17 +880,74 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     }
   }
 
+  List<String> _allScannedImages = [];
+  Map<String, dynamic>? _primaryAiAnalysis;
+
   Future<void> _confirm() async {
     if (_capturedImage == null || _isProcessing || _isAnalyzingAI) return;
 
-    await _analyzeWithAI();
+    if (_allScannedImages.isEmpty) {
+      await _analyzeWithAI();
+      if (_aiAnalysis != null) {
+        _primaryAiAnalysis = Map<String, dynamic>.from(_aiAnalysis!);
+      }
+    }
+
+    if (_processedImagePath != null) {
+      _allScannedImages.add(_processedImagePath!);
+    }
 
     if (mounted) {
+      _showAddMorePagesDialog();
+    }
+  }
+
+  void _showAddMorePagesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Documento Escaneado'),
+        content: Text(
+          _allScannedImages.length == 1
+              ? 'Deseja adicionar mais páginas a este documento?'
+              : 'Documento com ${_allScannedImages.length} páginas. Adicionar mais páginas?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _retryCapture(); // Limpa para nova captura
+            },
+            child: Text('Adicionar Mais Páginas'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _goToTransactionForm();
+            },
+            child: Text('Confirmar (${_allScannedImages.length} página${_allScannedImages.length > 1 ? 's' : ''})'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _goToTransactionForm() {
+    if (mounted) {
       Navigator.pop(context, {
-        'imagePath': _processedImagePath,
-        'aiAnalysis': _aiAnalysis,
+        'imagePaths': _allScannedImages,
+        'aiAnalysis': _primaryAiAnalysis ?? _aiAnalysis,
       });
     }
+  }
+
+  Future<void> _retryCapture() async {
+    setState(() {
+      _capturedImage = null;
+      _processedImagePath = null;
+      _selectedFilter = -1;
+      _showFilterOptions = false;
+    });
   }
 
   Future<void> _processCapturedImage(XFile imageFile) async {
@@ -919,8 +975,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
             _processedImagePath = processedPath;
           });
         }
-      } else {
-        throw Exception('Falha no processamento da imagem - finalImage é null');
       }
     } catch (e) {
       if (mounted) {
@@ -940,9 +994,10 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   }
 
   Future<void> _analyzeWithAI() async {
-
     StringBuffer invoicesString = StringBuffer();
     List<Transaction> invoices = await dbService.getNoPaidInvoices(widget.sectionId);
+
+
     for (var invoice in invoices) {
       invoicesString.write("id: ${invoice.id} -> entidade: ${invoice.entity}, valor: ${invoice.amount}, refMesAno: ${invoice.monthRef}\n");
     }
@@ -954,11 +1009,25 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     });
 
     try {
+      final apiKey = await dbService.getSetting('gemini_api_key');
+
+      if (apiKey == null || apiKey.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Configure a chave API Gemini nas definições para usar a análise automática.'),
+              backgroundColor: AppColors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
+      }
+
       final imageFile = File(_processedImagePath!);
       final imageBytes = await imageFile.readAsBytes();
       final imageBase64 = base64Encode(imageBytes);
 
-      String apiKey = "<CHAVE DA API DO GEMINI>";
       Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
 
       final prompt = """Recebeste uma imagem de um documento financeiro (ex.: fatura, recibo, comprovativo de pagamento).
@@ -973,7 +1042,9 @@ Deves extrair informações e responder **APENAS** com um objeto JSON de linha �
   "é_crédito": "0" | "1" | "UNKNOWN",
   "mes_ano_ref": "mm/yyyy" | "UNKNOWN",
   "descrição": "string | UNKNOWN",
-  "ids_ref_fatura": "string | UNKNOWN"
+  "ids_ref_fatura": "string | UNKNOWN",
+  "numero_serie": "string | UNKNOWN",
+  "metodo_pagamento": "string (<entidade>/<referência> em caso de entidade e referência e <IBAN> em caso de IBAN)| UNKNOWN"
 }
 
 ### Lista de tipos de documento:
@@ -988,13 +1059,15 @@ Deves extrair informações e responder **APENAS** com um objeto JSON de linha �
 3. A "data_emissao" deve estar no formato exacto "dd mm yyyy" (com zeros à esquerda). Se não houver data clara, usar "UNKNOWN".
 4. O "valor_total" deve representar o montante total pago ou a pagar, apenas o número (com ponto decimal). Se não identificado, usar "UNKNOWN".
 5. "data_limite" deve ser incluída apenas para tipo 2 (Nota de Cobrança), no formato "dd mm yyyy". Caso contrário, "UNKNOWN".
-6. Nunca escrever texto adicional, explicações, metadados, arrays, múltiplos objetos ou JSON inválido. Apenas um único objeto JSON válido numa linha.
-7. Se o documento não corresponder a nenhum dos três tipos principais, definir "tipo_documento" como 4 (Outro).
-8. Caso múltiplos documentos sejam visíveis, considera apenas o que ocupa a maior área na imagem.
-9. Em caso de transferência ou Pagamento por Multibanco, o nome da entidade deve ser o nome que está atribuído ao nome do destinatário.
-10. Em caso de comprovativo e nota de cobrança, deve incluir também o mês e o ano da referência que o valor foi atribuído.
-11. O argumento 'é_crédito' tem valor de '0' se não for crédito e '1' se for crédito.
-12. Analisa a imagem de um talão, fatura ou comprovativo de pagamento.
+6. "numero_serie" deve conter o número de série da faturação (ex: FT 2017/1, A123456, etc.). Se não identificado, usar "UNKNOWN".
+7. No parâmetro "metodo_pagamento" deve conter apenas os números do método de pagamento na seguinte estrutura no JSON em caso de ser por entidade e referência: metodo_pagamento:<nºentidade>/<nºreferência>, e <nºIBAN> em caso de ser IBAN. Se não identificado, usar "UNKNOWN".
+8. Nunca escrever texto adicional, explicações, metadados, arrays, múltiplos objetos ou JSON inválido. Apenas um único objeto JSON válido numa linha.
+9. Se o documento não corresponder a nenhum dos três tipos principais, definir "tipo_documento" como 4 (Outro).
+10. Caso múltiplos documentos sejam visíveis, considera apenas o que ocupa a maior área na imagem.
+11. Em caso de transferência ou Pagamento por Multibanco, o nome da entidade deve ser o nome que está atribuído ao nome do destinatário.
+12. Em caso de comprovativo e nota de cobrança, deve incluir também o mês e o ano da referência que o valor foi atribuído.
+13. O argumento 'é_crédito' tem valor de '0' se não for crédito e '1' se for crédito.
+14. Analisa a imagem de um talão, fatura ou comprovativo de pagamento.
 Identifica o tipo de compra ou o contexto geral da despesa, mas não descrevas produtos individuais, valores ou detalhes específicos.
 O objetivo é produzir uma descrição curta (até 7 palavras), que resuma de forma genérica e natural o tipo de gasto realizado.
 Exemplos:
@@ -1005,17 +1078,17 @@ Exemplos:
 -Talão de supermercado de animais → "Produtos para animais de estimação";
 -Recibo de hotel → "Alojamento e estadia";
 -Talão de combustível → "Combustível e transporte".
-13. No parâmetro "ids_ref_fatura" deve conter ids de faturas que pareça ser condizente com o comprovativo em questão. Se houver
+15. No parâmetro "ids_ref_fatura" deve conter ids de faturas que pareça ser condizente com o comprovativo em questão. Se houver
 alguma fatura que tenha a mesma referência de mês e ano (monthRef/mes_ano_ref), mesmo valor e nome de entidade condizente com o comprovativo, adicione ao parâmetro
 apenas o id dessa fatura. Se as faturas apenas tiverem entidade e/ou valor condizente, adiciona o id dessa(s) fatura(s). 
 Aqui estão as faturas reais para analizar:
 ${invoicesString.toString()}
 
 ### Exemplos de saída válida:
-{"tipo_documento":1,"entidade":"Continente","data_emissao":"05 10 2025","valor_total":"23.45","descrição":"Compras para a casa"}
-{"tipo_documento":2,"entidade":"EDP Comercial","data_emissao":"01 09 2025","valor_total":"65.90","descrição":"Fatura de Energia (EDP) de setembro","data_limite":"30 09 2025","mes_ano_ref":"09/2025"}
-{"tipo_documento":3,"entidade":"CASA PIA","data_emissao":"03 10 2025","valor_total":"25.00","descrição":"Pagamento do serviço casa PIA","mes_ano_ref":"10/2025","é_crédito":"0","ids_ref_fatura":"2025-10-02 12:07:37.790990,2025-10-01 10:07:37.865099"}
-{"tipo_documento":3,"entidade":"Diogo","data_emissao":"07 10 2025","valor_total":"500.00","descrição":"Transferencia de Diogo","mes_ano_ref":"10/2025","é_crédito":"1","ids_ref_fatura":''""";
+{"tipo_documento":1,"entidade":"Continente","data_emissao":"05 10 2025","valor_total":"23.45","descrição":"Compras para a casa","numero_serie":"UNKNOWN","metodo_pagamento":"UNKNOWN"}
+{"tipo_documento":2,"entidade":"EDP Comercial","data_emissao":"01 09 2025","valor_total":"65.90","descrição":"Fatura de Energia (EDP) de setembro","data_limite":"30 09 2025","mes_ano_ref":"09/2025","numero_serie":"FT 2023/12345","metodo_pagamento":"UNKNOWN"}
+{"tipo_documento":3,"entidade":"CASA PIA","data_emissao":"03 10 2025","valor_total":"25.00","descrição":"Pagamento do serviço casa PIA","mes_ano_ref":"10/2025","é_crédito":"0","ids_ref_fatura":"2025-10-02 12:07:37.790990,2025-10-01 10:07:37.865099","numero_serie":"UNKNOWN","metodo_pagamento":"67890/12345678901"}
+{"tipo_documento":3,"entidade":"Diogo","data_emissao":"07 10 2025","valor_total":"500.00","descrição":"Transferencia de Diogo","mes_ano_ref":"10/2025","é_crédito":"1","ids_ref_fatura":"","numero_serie":"UNKNOWN","metodo_pagamento":"PT50 0002 0123 1234 5678 9015 4"}""";
 
       final response = await http.post(
         url,
@@ -1049,16 +1122,18 @@ ${invoicesString.toString()}
               _aiAnalysis = aiResult;
             });
           }
-        } else {
-
         }
       } else {
-
+        throw Exception('Falha na API: ${response.statusCode}');
       }
     } catch (e) {
+      print('Erro na análise IA: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro na análise IA: $e')),
+          SnackBar(
+            content: Text('Erro na análise IA: $e'),
+            backgroundColor: AppColors.red,
+          ),
         );
       }
     } finally {
@@ -1070,13 +1145,6 @@ ${invoicesString.toString()}
     }
   }
 
-  Future<void> _retryCapture() async {
-    setState(() {
-      _capturedImage = null;
-      _processedImagePath = null;
-      _aiAnalysis = null;
-    });
-  }
 
   @override
   void dispose() {
@@ -1108,13 +1176,11 @@ ${invoicesString.toString()}
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // Imagem processada
                           Image.file(
                             File(_processedImagePath!),
                             fit: BoxFit.contain,
                           ),
 
-                          // Animação de scan
                           if (_showScanAnimation)
                             Positioned(
                               left: 0,
@@ -1143,16 +1209,12 @@ ${invoicesString.toString()}
                               ),
                             ),
 
-                          // Indicador do filtro atual
                           _buildCurrentFilterIndicator(),
 
-                          // Seletor de filtros
                           _buildFilterSelector(),
 
-                          // Botão toggle de filtros
                           _buildFilterToggleButton(),
 
-                          // Botões de ação inferiores
                           Positioned(
                             bottom: 20,
                             left: 0,
@@ -1210,13 +1272,11 @@ ${invoicesString.toString()}
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                          // Imagem capturada
                           Image.file(
                             File(_capturedImage!.path),
                             fit: BoxFit.contain,
                           ),
 
-                          // Animação de scan durante processamento
                           if (_showScanAnimation)
                             Positioned(
                               left: 0,
@@ -1243,10 +1303,9 @@ ${invoicesString.toString()}
                               ),
                             ),
 
-                          // Overlay de processamento (opcional)
                           if (_isProcessing)
                             Container(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withAlpha(200),
                               child: Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1262,7 +1321,6 @@ ${invoicesString.toString()}
                               ),
                             ),
 
-                          // Botões de ação inferiores
                           Positioned(
                             bottom: 20,
                             left: 0,
@@ -1271,7 +1329,6 @@ ${invoicesString.toString()}
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Botão Repetir
                                   Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: TextButton(
@@ -1284,7 +1341,6 @@ ${invoicesString.toString()}
                                       child: Icon(Icons.repeat),
                                     ),
                                   ),
-                                  // Botão Confirmar
                                   Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: TextButton(
@@ -1307,14 +1363,11 @@ ${invoicesString.toString()}
                       ),
                     );
                   } else {
-                    // Tela da câmera
                     return Stack(
                       fit: StackFit.expand,
                       children: [
-                        // Preview da câmera
                         CameraPreview(_controller!),
 
-                        // Botão de captura central
                         Positioned(
                           bottom: 20,
                           left: 0,
@@ -1336,7 +1389,6 @@ ${invoicesString.toString()}
                           ),
                         ),
 
-                        // Botão da galeria
                         Positioned(
                           bottom: 20,
                           right: 20,
@@ -1361,6 +1413,4 @@ ${invoicesString.toString()}
       ),
     );
   }
-
-
 }

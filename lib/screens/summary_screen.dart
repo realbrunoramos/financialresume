@@ -39,42 +39,26 @@ class SummaryScreen extends StatelessWidget {
     final innerRadius = 90;
     final total = despesa + receita;
 
+    if (total == 0) return image;
+
     final percentageDespesa = despesa / total;
 
-    const segments = 360;
+    for (var y = 0; y < size; y++) {
+      for (var x = 0; x < size; x++) {
+        final dx = x - center;
+        final dy = y - center;
+        final distance = math.sqrt(dx * dx + dy * dy);
 
-    for (var i = 0; i < segments; i++) {
-      final angle = 2 * math.pi * i / segments;
-      final isDespesa = angle < 2 * math.pi * percentageDespesa;
-      final color = isDespesa ? img.ColorRgb8(244,67,54) : img.ColorRgb8(76,175,80);
+        if (distance <= outerRadius && distance >= innerRadius) {
+          var angle = math.atan2(dy, dx);
+          if (angle < 0) angle += 2 * math.pi;
 
-      final angle1 = angle;
-      final angle2 = angle + 2 * math.pi / segments;
+          final isDespesa = angle < 2 * math.pi * percentageDespesa;
+          final color = isDespesa ? img.ColorRgb8(244, 67, 54) : img.ColorRgb8(76, 175, 80);
 
-      final points = [
-        img.Point(
-          (center + outerRadius * math.cos(angle1)).toInt(),
-          (center + outerRadius * math.sin(angle1)).toInt(),
-        ),
-        img.Point(
-          (center + outerRadius * math.cos(angle2)).toInt(),
-          (center + outerRadius * math.sin(angle2)).toInt(),
-        ),
-        img.Point(
-          (center + innerRadius * math.cos(angle2)).toInt(),
-          (center + innerRadius * math.sin(angle2)).toInt(),
-        ),
-        img.Point(
-          (center + innerRadius * math.cos(angle1)).toInt(),
-          (center + innerRadius * math.sin(angle1)).toInt(),
-        ),
-      ];
-
-      img.fillPolygon(
-        image,
-        vertices: points,
-        color: color,
-      );
+          image.setPixel(x, y, color);
+        }
+      }
     }
 
     return image;
@@ -94,8 +78,11 @@ class SummaryScreen extends StatelessWidget {
       double runningBalance = 0;
       final transactionsWithBalance = monthTransactions.map((t) {
         runningBalance += t.isCredit ? t.amount : -t.amount;
+
+        String descricaoFormatada = _formatDescription(t);
+
         return _TransactionWithBalance(
-          transaction: t,
+          transaction: t.copyWith(description: descricaoFormatada),
           runningBalance: runningBalance,
         );
       }).toList();
@@ -127,6 +114,95 @@ class SummaryScreen extends StatelessWidget {
     return monthlyData;
   }
 
+  String _formatDescription(Transaction transaction) {
+    String descricaoBase = transaction.description;
+    List<String> partes = [];
+
+    if (descricaoBase.isNotEmpty) {
+      partes.add(descricaoBase);
+    }
+
+    if ((transaction.docType == '2' || transaction.docType == '3') &&
+        transaction.numeroSerie != null &&
+        transaction.numeroSerie!.isNotEmpty &&
+        transaction.numeroSerie != 'UNKNOWN') {
+      partes.add('Nº: ${transaction.numeroSerie}');
+    }
+
+    if ((transaction.docType == '2' || transaction.docType == '3') &&
+        transaction.monthRef != null &&
+        transaction.monthRef!.isNotEmpty &&
+        transaction.monthRef != 'UNKNOWN') {
+      try {
+        final parts = transaction.monthRef!.split('/');
+        if (parts.length == 2) {
+          final mes = int.parse(parts[0]);
+          final ano = int.parse(parts[1]);
+          final dataRef = DateTime(ano, mes);
+          final mesExtenso = DateFormat('MMMM', 'pt_PT').format(dataRef);
+          partes.add('Ref: ${mesExtenso} de $ano');
+        }
+      } catch (e) {
+        partes.add('Ref: ${transaction.monthRef}');
+      }
+    }
+
+    return partes.join(' | ');
+  }
+
+  pw.Widget _buildStatCard(String title, String value, PdfColor color, pw.MemoryImage icon, String percentage) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+
+      child: pw.Row(
+        children: [
+          pw.Container(
+            width: 60,
+            height: 60,
+            decoration: pw.BoxDecoration(
+              borderRadius: pw.BorderRadius.circular(6),
+            ),
+            child: pw.Center(
+              child: pw.Image(icon, width: 46, height: 46),
+            ),
+          ),
+          pw.SizedBox(width: 10),
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.grey700,
+                  ),
+                ),
+                pw.Text(
+                  value,
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                if (percentage.isNotEmpty)
+                  pw.Text(
+                    percentage,
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _exportToPdf(BuildContext context) async {
     try {
       final pdf = pw.Document();
@@ -134,30 +210,17 @@ class SummaryScreen extends StatelessWidget {
       final format = DateFormat('dd/MM/yyyy');
       final now = DateTime.now();
 
-      final ByteData balanceIconData =
-      await rootBundle.load('assets/images/saldo.png');
-      final ByteData incomeIconData =
-      await rootBundle.load('assets/images/money_gain.png');
-      final ByteData expensesIconData =
-      await rootBundle.load('assets/images/money_loose.png');
+      final ByteData incomeIconData = await rootBundle.load('assets/images/money_gain.png');
+      final ByteData expensesIconData = await rootBundle.load('assets/images/money_loose.png');
 
-      final balanceIcon = pw.MemoryImage(balanceIconData.buffer.asUint8List());
       final incomeIcon = pw.MemoryImage(incomeIconData.buffer.asUint8List());
-      final expensesIcon =
-      pw.MemoryImage(expensesIconData.buffer.asUint8List());
+      final expensesIcon = pw.MemoryImage(expensesIconData.buffer.asUint8List());
 
-      final totalIncome = transactions
-          .where((t) => t.isCredit)
-          .fold<double>(0, (sum, t) => sum + t.amount);
-
-      final totalExpenses = transactions
-          .where((t) => !t.isCredit)
-          .fold<double>(0, (sum, t) => sum + t.amount);
-
+      final totalIncome = transactions.where((t) => t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
+      final totalExpenses = transactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
       final balance = totalIncome - totalExpenses;
 
-      final donutImage =
-      _createSimpleDonutChart(despesa: totalExpenses, receita: totalIncome);
+      final donutImage = _createSimpleDonutChart(despesa: totalExpenses, receita: totalIncome);
       final donutPng = img.encodePng(donutImage);
       final donutPdfImage = pw.MemoryImage(donutPng);
 
@@ -165,8 +228,7 @@ class SummaryScreen extends StatelessWidget {
         return '${value.toStringAsFixed(2)} EUR';
       }
 
-      final ByteData appImageBytes =
-      await rootBundle.load('assets/images/app_logo.png');
+      final ByteData appImageBytes = await rootBundle.load('assets/images/app_logo.png');
       final Uint8List appImageData = appImageBytes.buffer.asUint8List();
 
       final monthlyData = _prepareMonthlyTablesData(transactions);
@@ -174,34 +236,39 @@ class SummaryScreen extends StatelessWidget {
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(15),
+          margin: const pw.EdgeInsets.all(25),
           build: (pw.Context context) {
             return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Container(
-                  margin: const pw.EdgeInsets.only(bottom: 15),
-                  padding: const pw.EdgeInsets.all(10),
+                  margin: const pw.EdgeInsets.only(bottom: 20),
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      pw.Image(pw.MemoryImage(appImageData), width: 40, height: 40),
-                      pw.SizedBox(width: 10),
+                      pw.Container(
+                        width: 50,
+                        height: 50,
+                        child: pw.Center(
+                          child: pw.Image(pw.MemoryImage(appImageData), width: 30, height: 30),
+                        ),
+                      ),
+                      pw.SizedBox(width: 15),
                       pw.Expanded(
                         child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
                             pw.Text(
-                              'Relatório do Resumo Financeiro',
+                              'Relatório - Resumo Financeiro',
                               style: pw.TextStyle(
-                                fontSize: 14,
+                                fontSize: 16,
                                 fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.black,
                               ),
                             ),
                             pw.Text(
                               DateFormat('dd/MM/yyyy').format(now),
                               style: pw.TextStyle(
-                                fontSize: 8,
+                                fontSize: 10,
                                 color: PdfColors.grey600,
                               ),
                             ),
@@ -213,75 +280,55 @@ class SummaryScreen extends StatelessWidget {
                 ),
 
                 pw.Container(
-                  margin: const pw.EdgeInsets.only(bottom: 15),
-                  padding: const pw.EdgeInsets.all(12),
+                  margin: const pw.EdgeInsets.only(bottom: 20),
+                  padding: const pw.EdgeInsets.all(16),
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Text(
-                        'RECEITAS VS DESPESAS',
+                        'Visão Geral',
                         style: pw.TextStyle(
-                          fontSize: 12,
+                          fontSize: 18,
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.black,
                         ),
-                        textAlign: pw.TextAlign.center,
                       ),
-                      pw.SizedBox(height: 10),
+                      pw.SizedBox(height: 15),
 
-                      pw.Center(
-                        child: pw.Image(donutPdfImage, width: 200, height: 200),
-                      ),
-                      pw.SizedBox(height: 10),
-                      pw.Container(
-                        margin: pw.EdgeInsets.only(bottom: 15),
-                        child: pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                      pw.Row(
+                        crossAxisAlignment: pw.CrossAxisAlignment.center,
+                        children: [
+                          pw.Expanded(
+                            flex: 2,
+                            child: pw.Center(
+                              child: pw.Image(donutPdfImage, width: 180, height: 180),
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: 3,
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
                               children: [
-                                _buildSummaryCard(
-                                  'Total Receitas - ${((totalIncome / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%',
-                                  formatCurrency(totalIncome),
-                                  PdfColors.green,
-                                  incomeIcon,
-                                ),
-                                _buildSummaryCard(
-                                  'Total Despesas - ${((totalExpenses / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%',
-                                  formatCurrency(totalExpenses),
-                                  PdfColors.red,
-                                  expensesIcon,
-                                ),
+                                _buildStatCard('Total Receitas', formatCurrency(totalIncome),
+                                    PdfColors.green, incomeIcon, '${((totalIncome / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'),
+                                pw.SizedBox(height: 10),
+                                _buildStatCard('Total Despesas', formatCurrency(totalExpenses),
+                                    PdfColors.red, expensesIcon, '${((totalExpenses / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'),
+
                               ],
                             ),
-                            pw.SizedBox(height: 10),
-                            pw.Row(
-                              mainAxisAlignment: pw.MainAxisAlignment.center,
-                              children: [
-                                _buildSummaryCard(
-                                  'Saldo Total',
-                                  formatCurrency(balance),
-                                  PdfColors.black,
-                                  balanceIcon,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
 
                 pw.Container(
-                  margin: const pw.EdgeInsets.only(top: 15),
-                  padding: const pw.EdgeInsets.all(12),
+                  padding: const pw.EdgeInsets.all(16),
                   decoration: pw.BoxDecoration(
-                    color: balance >= 0
-                        ? _lightenColor(PdfColors.green, 0.9)
-                        : _lightenColor(PdfColors.red, 0.9),
-                    borderRadius: pw.BorderRadius.circular(6),
+                    color: balance >= 0 ? PdfColors.lightGreen : PdfColors.pink,
+                    borderRadius: pw.BorderRadius.circular(8),
                   ),
                   child: pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -290,18 +337,18 @@ class SummaryScreen extends StatelessWidget {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'SITUAÇÃO FINANCEIRA',
+                            'SITUAÇÃO FINANCEIRA ATUAL',
                             style: pw.TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.grey800,
+                              color: PdfColors.white,
                             ),
                           ),
-                          pw.SizedBox(height: 2),
+                          pw.SizedBox(height: 4),
                           pw.Text(
                             balance >= 0 ? 'Saldo Positivo' : 'Saldo Negativo',
                             style: pw.TextStyle(
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: pw.FontWeight.bold,
                               color: PdfColors.white,
                             ),
@@ -309,9 +356,9 @@ class SummaryScreen extends StatelessWidget {
                         ],
                       ),
                       pw.Text(
-                        '${formatValue(balance.abs())} EUR',
+                        formatCurrency(balance.abs()),
                         style: pw.TextStyle(
-                          fontSize: 16,
+                          fontSize: 18,
                           fontWeight: pw.FontWeight.bold,
                           color: PdfColors.white,
                         ),
@@ -320,22 +367,18 @@ class SummaryScreen extends StatelessWidget {
                   ),
                 ),
 
+                pw.Spacer(),
+
                 pw.Container(
                   margin: const pw.EdgeInsets.only(top: 20),
+                  padding: const pw.EdgeInsets.all(12),
                   child: pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        'Página 1',
-                        style: const pw.TextStyle(
-                          fontSize: 8,
-                          color: PdfColors.grey600,
-                        ),
-                      ),
-                      pw.Text(
                         'Financial Resume App - by Bruno Ramos',
                         style: const pw.TextStyle(
-                          fontSize: 8,
+                          fontSize: 9,
                           color: PdfColors.grey600,
                         ),
                       ),
@@ -348,25 +391,20 @@ class SummaryScreen extends StatelessWidget {
         ),
       );
 
-
-      int pageNumber = 2;
       monthlyData.forEach((monthKey, data) {
         pdf.addPage(
           pw.Page(
             pageFormat: PdfPageFormat.a4,
-            margin: const pw.EdgeInsets.all(15),
+            margin: const pw.EdgeInsets.all(25),
             build: (pw.Context context) {
               return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-
                   pw.Container(
-                    padding: const pw.EdgeInsets.all(12),
+                    padding: const pw.EdgeInsets.all(16),
                     decoration: pw.BoxDecoration(
                       color: PdfColors.blue,
-                      borderRadius: const pw.BorderRadius.only(
-                        topLeft: pw.Radius.circular(6),
-                        topRight: pw.Radius.circular(6),
-                      ),
+                      borderRadius: pw.BorderRadius.circular(8),
                     ),
                     child: pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -374,7 +412,7 @@ class SummaryScreen extends StatelessWidget {
                         pw.Text(
                           data['monthName'].toUpperCase(),
                           style: pw.TextStyle(
-                            fontSize: 14,
+                            fontSize: 16,
                             fontWeight: pw.FontWeight.bold,
                             color: PdfColors.white,
                           ),
@@ -383,209 +421,174 @@ class SummaryScreen extends StatelessWidget {
                     ),
                   ),
 
-
                   pw.Container(
-                    padding: const pw.EdgeInsets.all(10),
+                    margin: const pw.EdgeInsets.only(top: 15, bottom: 10),
+                    padding: const pw.EdgeInsets.all(12),
                     decoration: pw.BoxDecoration(
                       color: PdfColors.grey100,
-                      border: pw.Border.all(color: PdfColors.grey300),
+                      borderRadius: pw.BorderRadius.circular(6),
                     ),
                     child: pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                       children: [
-                        _buildMonthSummaryItem(
-                            'Receitas', formatValue(data['monthIncome']), PdfColors.green),
-                        _buildMonthSummaryItem(
-                            'Despesas', formatValue(data['monthExpenses']), PdfColors.red),
+                        _buildMonthSummaryItem('Receitas', formatValue(data['monthIncome']), PdfColors.green),
+                        _buildMonthSummaryItem('Despesas', formatValue(data['monthExpenses']), PdfColors.red),
                         _buildMonthSummaryItem('Saldo', formatValue(data['monthBalance']),
                             data['monthBalance'] >= 0 ? PdfColors.green : PdfColors.red),
                       ],
                     ),
                   ),
 
-
-                  pw.Container(
-                    margin: const pw.EdgeInsets.only(top: 10),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey300),
-                      borderRadius: const pw.BorderRadius.only(
-                        bottomLeft: pw.Radius.circular(6),
-                        bottomRight: pw.Radius.circular(6),
+                  pw.Expanded(
+                    child: pw.Container(
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        borderRadius: pw.BorderRadius.circular(6),
                       ),
-                    ),
-                    child: pw.Table(
-                      border: pw.TableBorder(
-                        horizontalInside: pw.BorderSide(color: PdfColors.grey200),
-                        verticalInside: pw.BorderSide(color: PdfColors.grey200),
-                      ),
-                      columnWidths: const {
-                        0: pw.FlexColumnWidth(1.5),
-                        1: pw.FlexColumnWidth(3),
-                        2: pw.FlexColumnWidth(1.5),
-                        3: pw.FlexColumnWidth(1.5),
-                      },
-                      children: [
-
-                        pw.TableRow(
-                          decoration: pw.BoxDecoration(
-                            color: PdfColors.grey200,
-                          ),
-                          children: [
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(
-                                'DATA',
-                                style: pw.TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.black,
-                                ),
-                                textAlign: pw.TextAlign.center,
-                              ),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(
-                                'DESCRIÇÃO',
-                                style: pw.TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.black,
-                                ),
-                                textAlign: pw.TextAlign.center,
-                              ),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(
-                                'VALOR',
-                                style: pw.TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.black,
-                                ),
-                                textAlign: pw.TextAlign.center,
-                              ),
-                            ),
-                            pw.Padding(
-                              padding: const pw.EdgeInsets.all(8),
-                              child: pw.Text(
-                                'SALDO',
-                                style: pw.TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: pw.FontWeight.bold,
-                                  color: PdfColors.black,
-                                ),
-                                textAlign: pw.TextAlign.center,
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        for (final item in data['transactions'])
+                      child: pw.Table(
+                        border: pw.TableBorder.all(color: PdfColors.grey200),
+                        columnWidths: const {
+                          0: pw.FlexColumnWidth(1.2),
+                          1: pw.FlexColumnWidth(3.5),
+                          2: pw.FlexColumnWidth(1.3),
+                          3: pw.FlexColumnWidth(1.3),
+                        },
+                        children: [
                           pw.TableRow(
                             decoration: pw.BoxDecoration(
-                              color: data['transactions'].indexOf(item).isEven
-                                  ? PdfColors.white
-                                  : PdfColors.grey50,
+                              color: PdfColors.grey200,
                             ),
                             children: [
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  format.format(item.transaction.date),
-                                  style: const pw.TextStyle(
-                                    fontSize: 8,
-                                    color: PdfColors.grey800,
+                                  'DATA',
+                                  style: pw.TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: PdfColors.black,
                                   ),
                                   textAlign: pw.TextAlign.center,
                                 ),
                               ),
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  item.transaction.description,
-                                  style: const pw.TextStyle(
-                                    fontSize: 8,
-                                    color: PdfColors.grey800,
-                                  ),
-                                  maxLines: 2,
-                                ),
-                              ),
-                              pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
-                                child: pw.Text(
-                                  '${item.transaction.isCredit ? '+' : '-'}${formatValue(item.transaction.amount)}',
+                                  'DESCRIÇÃO',
                                   style: pw.TextStyle(
-                                    fontSize: 8,
+                                    fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
-                                    color: item.transaction.isCredit
-                                        ? PdfColors.green
-                                        : PdfColors.red,
+                                    color: PdfColors.black,
                                   ),
                                   textAlign: pw.TextAlign.center,
                                 ),
                               ),
                               pw.Padding(
-                                padding: const pw.EdgeInsets.all(6),
+                                padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  formatValue(item.runningBalance),
+                                  'VALOR',
                                   style: pw.TextStyle(
-                                    fontSize: 8,
+                                    fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
-                                    color: item.runningBalance >= 0
-                                        ? PdfColors.green
-                                        : PdfColors.red,
+                                    color: PdfColors.black,
+                                  ),
+                                  textAlign: pw.TextAlign.center,
+                                ),
+                              ),
+                              pw.Padding(
+                                padding: const pw.EdgeInsets.all(10),
+                                child: pw.Text(
+                                  'SALDO',
+                                  style: pw.TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: pw.FontWeight.bold,
+                                    color: PdfColors.black,
                                   ),
                                   textAlign: pw.TextAlign.center,
                                 ),
                               ),
                             ],
                           ),
-                      ],
+                          for (final item in data['transactions'])
+                            pw.TableRow(
+                              decoration: pw.BoxDecoration(
+                                color: data['transactions'].indexOf(item).isEven
+                                    ? PdfColors.white
+                                    : PdfColors.grey50,
+                              ),
+                              children: [
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Text(
+                                    format.format(item.transaction.date),
+                                    style: const pw.TextStyle(
+                                      fontSize: 9,
+                                      color: PdfColors.grey800,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
+                                  ),
+                                ),
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Text(
+                                    item.transaction.description,
+                                    style: const pw.TextStyle(
+                                      fontSize: 9,
+                                      color: PdfColors.grey800,
+                                    ),
+                                    maxLines: 2,
+                                  ),
+                                ),
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Text(
+                                    '${item.transaction.isCredit ? '+' : '-'}${formatValue(item.transaction.amount)}',
+                                    style: pw.TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: item.transaction.isCredit
+                                          ? PdfColors.green
+                                          : PdfColors.red,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
+                                  ),
+                                ),
+                                pw.Padding(
+                                  padding: const pw.EdgeInsets.all(8),
+                                  child: pw.Text(
+                                    formatValue(item.runningBalance),
+                                    style: pw.TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: pw.FontWeight.bold,
+                                      color: item.runningBalance >= 0
+                                          ? PdfColors.green
+                                          : PdfColors.red,
+                                    ),
+                                    textAlign: pw.TextAlign.center,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
                   ),
 
-
-                  pw.Container(
-                    margin: const pw.EdgeInsets.only(top: 20),
-                    child: pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text(
-                          'Página $pageNumber',
-                          style: const pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                        pw.Text(
-                          'Financial Resume App - by Bruno Ramos',
-                          style: const pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.grey600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               );
             },
           ),
         );
-        pageNumber++;
       });
 
       final output = await getTemporaryDirectory();
-      final fileName =
-          'resumo_financeiro_${DateFormat('yyyyMMdd').format(now)}.pdf';
+      final fileName = 'resumo_financeiro_${DateFormat('yyyyMMdd_HHmm').format(now)}.pdf';
       final file = File('${output.path}/$fileName');
       await file.writeAsBytes(await pdf.save());
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('PDF Salvo com sucesso!'),
+          content: Text('PDF gerado com sucesso!'),
           backgroundColor: AppColors.green,
         ),
       );
@@ -631,437 +634,6 @@ class SummaryScreen extends StatelessWidget {
     return sortedMap;
   }
 
-  pw.Widget _buildMonthTable(Map<String, dynamic> data, DateFormat format) {
-    final monthName = data['monthName'] as String;
-    final transactionsWithBalance = data['transactions'] as List<_TransactionWithBalance>;
-    final monthIncome = data['monthIncome'] as double;
-    final monthExpenses = data['monthExpenses'] as double;
-    final monthBalance = data['monthBalance'] as double;
-
-    return pw.Container(
-      margin: const pw.EdgeInsets.only(bottom: 15),
-      child: pw.Column(
-        children: [
-
-          pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.blue,
-              borderRadius: const pw.BorderRadius.only(
-                topLeft: pw.Radius.circular(6),
-                topRight: pw.Radius.circular(6),
-              ),
-            ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                  monthName.toUpperCase(),
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-
-          pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.grey100,
-              border: pw.Border.all(color: PdfColors.grey300),
-            ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-              children: [
-                _buildMonthSummaryItem(
-                    'Receitas', formatValue(monthIncome), PdfColors.green),
-                _buildMonthSummaryItem(
-                    'Despesas', formatValue(monthExpenses), PdfColors.red),
-                _buildMonthSummaryItem('Saldo', formatValue(monthBalance),
-                    monthBalance >= 0 ? PdfColors.green : PdfColors.red),
-              ],
-            ),
-          ),
-
-
-          pw.Container(
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey300),
-              borderRadius: const pw.BorderRadius.only(
-                bottomLeft: pw.Radius.circular(6),
-                bottomRight: pw.Radius.circular(6),
-              ),
-            ),
-            child: pw.Table(
-              border: pw.TableBorder(
-                horizontalInside: pw.BorderSide(color: PdfColors.grey200),
-                verticalInside: pw.BorderSide(color: PdfColors.grey200),
-              ),
-              columnWidths: const {
-                0: pw.FlexColumnWidth(1.5),
-                1: pw.FlexColumnWidth(3),
-                2: pw.FlexColumnWidth(1.5),
-                3: pw.FlexColumnWidth(1.5),
-              },
-              children: [
-
-                pw.TableRow(
-                  decoration: pw.BoxDecoration(
-                    color: PdfColors.grey200,
-                  ),
-                  children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(
-                        'DATA',
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.black,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(
-                        'DESCRIÇÃO',
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.black,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(
-                        'VALOR',
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.black,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(8),
-                      child: pw.Text(
-                        'SALDO',
-                        style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.black,
-                        ),
-                        textAlign: pw.TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-
-                for (final item in transactionsWithBalance)
-                  pw.TableRow(
-                    decoration: pw.BoxDecoration(
-                      color: transactionsWithBalance.indexOf(item).isEven
-                          ? PdfColors.white
-                          : PdfColors.grey50,
-                    ),
-                    children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          format.format(item.transaction.date),
-                          style: const pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.grey800,
-                          ),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          item.transaction.description,
-                          style: const pw.TextStyle(
-                            fontSize: 8,
-                            color: PdfColors.grey800,
-                          ),
-                          maxLines: 2,
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          '${item.transaction.isCredit ? '+' : '-'}${formatValue(item.transaction.amount)}',
-                          style: pw.TextStyle(
-                            fontSize: 8,
-                            fontWeight: pw.FontWeight.bold,
-                            color: item.transaction.isCredit
-                                ? PdfColors.green
-                                : PdfColors.red,
-                          ),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text(
-                          formatValue(item.runningBalance),
-                          style: pw.TextStyle(
-                            fontSize: 8,
-                            fontWeight: pw.FontWeight.bold,
-                            color: item.runningBalance >= 0
-                                ? PdfColors.green
-                                : PdfColors.red,
-                          ),
-                          textAlign: pw.TextAlign.center,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<pw.Widget> _buildMonthlyTables(
-      Map<String, List<Transaction>> monthlyTransactions, DateFormat format) {
-    final tables = <pw.Widget>[];
-
-    monthlyTransactions.forEach((monthKey, transactions) {
-      final monthDate = DateFormat('yyyy-MM').parse(monthKey);
-      final monthName = DateFormat('MMMM yyyy', 'pt_PT').format(monthDate);
-
-
-      final monthIncome = transactions
-          .where((t) => t.isCredit)
-          .fold<double>(0, (sum, t) => sum + t.amount);
-
-      final monthExpenses = transactions
-          .where((t) => !t.isCredit)
-          .fold<double>(0, (sum, t) => sum + t.amount);
-
-      final monthBalance = monthIncome - monthExpenses;
-
-
-      transactions.sort((a, b) => b.date.compareTo(a.date));
-
-
-      double runningBalance = 0;
-      final transactionsWithBalance = transactions.map((t) {
-        runningBalance += t.isCredit ? t.amount : -t.amount;
-        return _TransactionWithBalance(
-          transaction: t,
-          runningBalance: runningBalance,
-        );
-      }).toList();
-
-      tables.addAll([
-        pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 15),
-          child: pw.Column(
-            children: [
-
-              pw.Container(
-                padding: const pw.EdgeInsets.all(12),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.blue,
-                  borderRadius: const pw.BorderRadius.only(
-                    topLeft: pw.Radius.circular(6),
-                    topRight: pw.Radius.circular(6),
-                  ),
-                ),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text(
-                      monthName.toUpperCase(),
-                      style: pw.TextStyle(
-                        fontSize: 14,
-                        fontWeight: pw.FontWeight.bold,
-                        color: PdfColors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              pw.Container(
-                padding: const pw.EdgeInsets.all(10),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.grey100,
-                  border: pw.Border.all(color: PdfColors.grey300),
-                ),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildMonthSummaryItem(
-                        'Receitas', formatValue(monthIncome), PdfColors.green),
-                    _buildMonthSummaryItem(
-                        'Despesas', formatValue(monthExpenses), PdfColors.red),
-                    _buildMonthSummaryItem('Saldo', formatValue(monthBalance),
-                        monthBalance >= 0 ? PdfColors.green : PdfColors.red),
-                  ],
-                ),
-              ),
-
-              pw.Container(
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
-                  borderRadius: const pw.BorderRadius.only(
-                    bottomLeft: pw.Radius.circular(6),
-                    bottomRight: pw.Radius.circular(6),
-                  ),
-                ),
-                child: pw.Table(
-                  border: pw.TableBorder(
-                    horizontalInside: pw.BorderSide(color: PdfColors.grey200),
-                    verticalInside: pw.BorderSide(color: PdfColors.grey200),
-                  ),
-                  columnWidths: const {
-                    0: pw.FlexColumnWidth(1.5),
-                    1: pw.FlexColumnWidth(3),
-                    2: pw.FlexColumnWidth(1.5),
-                    3: pw.FlexColumnWidth(1.5),
-                  },
-                  children: [
-                    pw.TableRow(
-                      decoration: pw.BoxDecoration(
-                        color: PdfColors.grey200,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'DATA',
-                            style: pw.TextStyle(
-                              fontSize: 9,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.black,
-                            ),
-                            textAlign: pw.TextAlign.center,
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'DESCRIÇÃO',
-                            style: pw.TextStyle(
-                              fontSize: 9,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.black,
-                            ),
-                            textAlign: pw.TextAlign.center,
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'VALOR',
-                            style: pw.TextStyle(
-                              fontSize: 9,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.black,
-                            ),
-                            textAlign: pw.TextAlign.center,
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Text(
-                            'SALDO',
-                            style: pw.TextStyle(
-                              fontSize: 9,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.black,
-                            ),
-                            textAlign: pw.TextAlign.center,
-                          ),
-                        ),
-                      ],
-                    ),
-                    for (final item in transactionsWithBalance)
-                      pw.TableRow(
-                        decoration: pw.BoxDecoration(
-                          color: transactionsWithBalance.indexOf(item).isEven
-                              ? PdfColors.white
-                              : PdfColors.grey50,
-                        ),
-                        children: [
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              format.format(item.transaction.date),
-                              style: const pw.TextStyle(
-                                fontSize: 8,
-                                color: PdfColors.grey800,
-                              ),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              item.transaction.description,
-                              style: const pw.TextStyle(
-                                fontSize: 8,
-                                color: PdfColors.grey800,
-                              ),
-                              maxLines: 2,
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              '${item.transaction.isCredit ? '+' : '-'}${formatValue(item.transaction.amount)}',
-                              style: pw.TextStyle(
-                                fontSize: 8,
-                                fontWeight: pw.FontWeight.bold,
-                                color: item.transaction.isCredit
-                                    ? PdfColors.green
-                                    : PdfColors.red,
-                              ),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                          pw.Padding(
-                            padding: const pw.EdgeInsets.all(6),
-                            child: pw.Text(
-                              formatValue(item.runningBalance),
-                              style: pw.TextStyle(
-                                fontSize: 8,
-                                fontWeight: pw.FontWeight.bold,
-                                color: item.runningBalance >= 0
-                                    ? PdfColors.green
-                                    : PdfColors.red,
-                              ),
-                              textAlign: pw.TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        pw.SizedBox(height: 100),
-      ]);
-    });
-
-    return tables;
-  }
-
   pw.Widget _buildMonthSummaryItem(String title, String value, PdfColor color) {
     return pw.Column(
       children: [
@@ -1083,57 +655,6 @@ class SummaryScreen extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-
-  PdfColor _lightenColor(PdfColor color, double factor) {
-    if (color == PdfColors.green) return PdfColors.lightGreen;
-    if (color == PdfColors.red) return PdfColors.pink;
-    return color;
-  }
-
-  pw.Widget _buildSummaryCard(
-      String title, String value, PdfColor color, pw.MemoryImage icon) {
-    return pw.Container(
-      width: 120,
-      padding: const pw.EdgeInsets.all(10),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        mainAxisAlignment: pw.MainAxisAlignment.center,
-        children: [
-          pw.Row(
-            children: [
-              pw.Image(
-                icon,
-                width: 20,
-                height: 20,
-              ),
-              pw.SizedBox(width: 4),
-              pw.Expanded(
-                child: pw.Text(
-                  title,
-                  style: pw.TextStyle(
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.grey700,
-                  ),
-                  maxLines: 2,
-                ),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 4),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-              color: color,
-            ),
-            textAlign: pw.TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 

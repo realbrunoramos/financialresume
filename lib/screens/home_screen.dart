@@ -1,3 +1,4 @@
+import 'package:financialresume/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/section.dart';
@@ -132,6 +133,10 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text('Configurações'),
               onTap: () {
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SettingsScreen()),
+                );
               },
             ),
             ListTile(

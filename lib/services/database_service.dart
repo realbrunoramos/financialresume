@@ -11,7 +11,8 @@ class DatabaseService {
   static const String transactionTable = 'transactions';
   static const String paidMonthsTable = 'paid_months';
   static const String emailsSentTable = 'emails_sent';
-  static const String reservedAmountsTable = 'reserved_amounts'; // Nova tabela
+  static const String reservedAmountsTable = 'reserved_amounts';
+  static const String settingsTable = 'settings';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -25,157 +26,300 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 7, // Incrementado para nova tabela de reservas
+      version: 13,
       onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE $sectionTable (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            createdAt TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $transactionTable (
-            id TEXT PRIMARY KEY,
-            amount REAL,
-            entity TEXT,
-            description TEXT,
-            isCredit INTEGER,
-            date TEXT,
-            receiptPaths TEXT,
-            sectionId TEXT,
-            docType TEXT,
-            monthRef TEXT,
-            dueDate TEXT,
-            paid INTEGER DEFAULT 0,
-            FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $paidMonthsTable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            monthRef TEXT UNIQUE,
-            addedAt TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $emailsSentTable (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entity TEXT,
-            recipient TEXT,
-            subject TEXT,
-            body TEXT,
-            sentAt TEXT,
-            emission_date TEXT
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE $reservedAmountsTable (
-            id TEXT PRIMARY KEY,
-            sectionId TEXT NOT NULL,
-            description TEXT NOT NULL,
-            amount REAL NOT NULL,
-            createdAt INTEGER NOT NULL,
-            FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
-          )
-        ''');
+        await _createTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('''
-            CREATE TABLE $sectionTable (
-              id TEXT PRIMARY KEY,
-              name TEXT,
-              createdAt TEXT
-            )
-          ''');
-          await db.execute('ALTER TABLE $transactionTable ADD sectionId TEXT');
-          final defaultSection = Section(
-            id: 'default_section',
-            name: 'Transações Padrão',
-            createdAt: DateTime.now(),
-          );
-          await db.insert(sectionTable, defaultSection.toMap());
-          await db.execute('UPDATE $transactionTable SET sectionId = ?', ['default_section']);
+        print("🔄 Upgrading database from version $oldVersion to $newVersion");
+
+        if (oldVersion < 10) {
+          await _recreateTransactionsTable(db);
+        } else {
+          await _addMissingColumns(db);
         }
-        if (oldVersion < 3) {
-          await db.execute('ALTER TABLE $transactionTable ADD docType TEXT');
-          await db.execute('ALTER TABLE $transactionTable ADD monthRef TEXT');
-          await db.execute('ALTER TABLE $transactionTable ADD dueDate TEXT');
-          await db.execute('ALTER TABLE $transactionTable ADD paid INTEGER DEFAULT 0');
-          await db.execute('''
-            CREATE TABLE $paidMonthsTable (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              monthRef TEXT UNIQUE,
-              addedAt TEXT
-            )
-          ''');
+
+        if (oldVersion < 12) {
+          await _upgradeToVersion12(db);
         }
-        if (oldVersion < 5) {
-          await db.execute('''
-            CREATE TABLE IF NOT EXISTS $emailsSentTable (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              entity TEXT,
-              recipient TEXT,
-              subject TEXT,
-              body TEXT,
-              sentAt TEXT
-            )
-          ''');
-        }
-        if (oldVersion < 6) {
-          await db.execute('ALTER TABLE $emailsSentTable ADD COLUMN emission_date TEXT');
-          await db.execute('ALTER TABLE $transactionTable ADD COLUMN entity TEXT DEFAULT ""');
-        }
-        if (oldVersion < 7) {
-          await db.execute('''
-            CREATE TABLE $reservedAmountsTable (
-              id TEXT PRIMARY KEY,
-              sectionId TEXT NOT NULL,
-              description TEXT NOT NULL,
-              amount REAL NOT NULL,
-              createdAt INTEGER NOT NULL,
-              FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
-            )
-          ''');
+        if (oldVersion < 13) {
+          await _upgradeToVersion13(db);
         }
       },
     );
   }
 
-  // Métodos para Sections
-  Future<void> addSection(Section section) async {
-    final db = await database;
-    await db.insert(sectionTable, section.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+  Future<void> _createTables(Database db) async {
+    print("🏗️ Creating database tables from scratch");
+
+    await db.execute('''
+      CREATE TABLE $sectionTable (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        createdAt TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $transactionTable (
+        id TEXT PRIMARY KEY,
+        amount REAL,
+        entity TEXT,
+        description TEXT,
+        isCredit INTEGER,
+        date TEXT,
+        receiptPaths TEXT,
+        sectionId TEXT,
+        docType TEXT,
+        monthRef TEXT,
+        dueDate TEXT,
+        paid INTEGER DEFAULT 0,
+        numeroSerie TEXT,
+        metodoPagamento TEXT,
+        FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $paidMonthsTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        monthRef TEXT UNIQUE,
+        addedAt TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $emailsSentTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity TEXT,
+        recipient TEXT,
+        subject TEXT,
+        body TEXT,
+        sentAt TEXT,
+        emission_date TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $reservedAmountsTable (
+        id TEXT PRIMARY KEY,
+        sectionId TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE $settingsTable (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
+
+    print("✅ All tables created successfully");
   }
 
-  Future<void> updateSection(Section section) async {
+  Future<void> _upgradeToVersion12(Database db) async {
+    print("🔄 Upgrading to version 12 - Adding settings table");
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $settingsTable (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      ''');
+      print("✅ Created settings table");
+    } catch (e) {
+      print("ℹ️ Settings table already exists: $e");
+    }
+  }
+
+  Future<void> _upgradeToVersion13(Database db) async {
+    print("Upgrading to version 13 - Database final structure");
+  }
+
+  Future<void> saveSetting(String key, String value) async {
     final db = await database;
-    await db.update(
-      sectionTable,
-      section.toMap(),
-      where: 'id = ?',
-      whereArgs: [section.id],
+    await db.insert(
+      settingsTable,
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    print("💾 Setting saved: $key = $value");
   }
 
-  Future<void> deleteSection(String id) async {
+  Future<String?> getSetting(String key) async {
     final db = await database;
-    await db.delete(transactionTable, where: 'sectionId = ?', whereArgs: [id]);
-    await db.delete(reservedAmountsTable, where: 'sectionId = ?', whereArgs: [id]);
-    await db.delete(sectionTable, where: 'id = ?', whereArgs: [id]);
+    final result = await db.query(
+      settingsTable,
+      where: 'key = ?',
+      whereArgs: [key],
+    );
+    if (result.isEmpty) return null;
+    final value = result.first['value'] as String?;
+    print("🔍 Setting retrieved: $key = $value");
+    return value;
   }
 
-  Future<List<Section>> getAllSections() async {
+  Future<Map<String, String>> getAllSettings() async {
     final db = await database;
-    final maps = await db.query(sectionTable, orderBy: 'createdAt DESC');
-    return maps.map((map) => Section.fromMap(map)).toList();
+    final result = await db.query(settingsTable);
+    final settings = <String, String>{};
+    for (final row in result) {
+      settings[row['key'] as String] = row['value'] as String;
+    }
+    print("📋 All settings: $settings");
+    return settings;
   }
 
-  // Métodos para Transactions
+  Future<void> initializeDefaultSettings() async {
+    print("⚙️ Initializing default settings");
+
+    final language = await getSetting('language');
+    if (language == null) {
+      await saveSetting('language', 'pt');
+      print("✅ Default language set to Portuguese");
+    }
+  }
+
+  Future<void> _recreateTransactionsTable(Database db) async {
+
+    final oldData = await db.rawQuery('SELECT * FROM $transactionTable');
+
+    await db.execute('DROP TABLE IF EXISTS $transactionTable');
+
+    await db.execute('''
+      CREATE TABLE $transactionTable (
+        id TEXT PRIMARY KEY,
+        amount REAL,
+        entity TEXT,
+        description TEXT,
+        isCredit INTEGER,
+        date TEXT,
+        receiptPaths TEXT,
+        sectionId TEXT,
+        docType TEXT,
+        monthRef TEXT,
+        dueDate TEXT,
+        paid INTEGER DEFAULT 0,
+        numeroSerie TEXT,
+        metodoPagamento TEXT,
+        FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
+      )
+    ''');
+
+    if (oldData.isNotEmpty) {
+      final batch = db.batch();
+      for (final row in oldData) {
+        final newRow = Map<String, dynamic>.from(row);
+        newRow['numeroSerie'] = row['numeroSerie'] ?? '';
+        newRow['metodoPagamento'] = row['metodoPagamento'] ?? '';
+
+        batch.insert(transactionTable, newRow, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit();
+    }
+
+  }
+
+  Future<void> _addMissingColumns(Database db) async {
+    final tableInfo = await db.rawQuery('PRAGMA table_info($transactionTable)');
+    final existingColumns = tableInfo.map((col) => col['name'] as String).toList();
+
+
+    if (!existingColumns.contains('numeroSerie')) {
+      await db.execute('ALTER TABLE $transactionTable ADD COLUMN numeroSerie TEXT');
+    }
+
+    if (!existingColumns.contains('metodoPagamento')) {
+      await db.execute('ALTER TABLE $transactionTable ADD COLUMN metodoPagamento TEXT');
+    }
+  }
+
+  Future<void> debugTableStructure() async {
+    final db = await database;
+    try {
+      final result = await db.rawQuery('PRAGMA table_info($transactionTable)');
+      for (final column in result) {
+        print("${column['name']} (${column['type']}) - PK: ${column['pk']}");
+      }
+      final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM $transactionTable');
+      print("Total de registros: ${countResult.first['count']}");
+    } catch (e) {
+      print("Erro ao verificar estrutura da tabela: $e");
+    }
+  }
+
   Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
-    await db.insert(transactionTable, transaction.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+
+    print("INICIANDO SALVAMENTO DA TRANSAÇÃO:");
+    print("   - ID: ${transaction.id}");
+    print("   - Entity: ${transaction.entity}");
+    print("   - DocType: ${transaction.docType}");
+    print("   - Paid: ${transaction.paid}");
+    print("   - SectionId: ${transaction.sectionId}");
+    print("   - NumeroSerie: ${transaction.numeroSerie}");
+    print("   - MetodoPagamento: ${transaction.metodoPagamento}");
+
+    try {
+      await _addMissingColumns(db);
+      final map = transaction.toMap();
+      final result = await db.insert(
+          transactionTable,
+          map,
+          conflictAlgorithm: ConflictAlgorithm.replace
+      );
+
+      final verification = await db.query(
+        transactionTable,
+        where: 'id = ?',
+        whereArgs: [transaction.id],
+      );
+
+      if (verification.isNotEmpty) {
+        print("TRANSAÇÃO SALVA E VERIFICADA COM SUCESSO!");
+      } else {
+        print("VERIFICAÇÃO FALHOU - Transação não encontrada após insert");
+      }
+
+    } catch (e, stackTrace) {
+      print("ERRO CRÍTICO no banco de dados:");
+      print("   Erro: $e");
+      print("   StackTrace: $stackTrace");
+
+      await _emergencySaveTransaction(db, transaction);
+    }
+  }
+
+  Future<void> _emergencySaveTransaction(Database db, trns.Transaction transaction) async {
+    print("TENTANDO SALVAMENTO DE EMERGÊNCIA...");
+
+    try {
+      final emergencyMap = {
+        'id': transaction.id,
+        'amount': transaction.amount,
+        'entity': transaction.entity,
+        'description': transaction.description,
+        'isCredit': transaction.isCredit ? 1 : 0,
+        'date': transaction.date.toIso8601String(),
+        'receiptPaths': transaction.receiptPaths.join(','),
+        'sectionId': transaction.sectionId,
+        'docType': transaction.docType,
+        'monthRef': transaction.monthRef,
+        'dueDate': transaction.dueDate?.toIso8601String(),
+        'paid': transaction.paid ? 1 : 0,
+      };
+      final result = await db.insert(
+          transactionTable,
+          emergencyMap,
+          conflictAlgorithm: ConflictAlgorithm.replace
+      );
+    } catch (e) {
+      rethrow;
+    }
   }
 
   Future<void> updateTransaction(trns.Transaction transaction) async {
@@ -206,6 +350,7 @@ class DatabaseService {
 
   Future<List<trns.Transaction>> getNoPaidInvoices(String sectionId) async {
     final db = await database;
+
     final maps = await db.rawQuery('''
     SELECT t2.*
     FROM $transactionTable t2
@@ -213,9 +358,168 @@ class DatabaseService {
       t2.docType = '2'
       AND t2.paid = 0
       AND t2.sectionId = ?
-      ORDER BY date DESC
+    ORDER BY date DESC
   ''', [sectionId]);
+
+    for (final map in maps) {
+      print("   - ${map['entity']} (ID: ${map['id']})");
+    }
+
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
+  }
+
+  Future<trns.Transaction?> getTransactionById(String id) async {
+    final db = await database;
+    final maps = await db.query(transactionTable, where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return trns.Transaction.fromMap(maps.first);
+  }
+
+  Future<void> clearAllData() async {
+    final db = await database;
+    await db.delete(reservedAmountsTable);
+    await db.delete(transactionTable);
+    await db.delete(sectionTable);
+    await db.delete(paidMonthsTable);
+    await db.delete(emailsSentTable);
+  }
+
+  Future<void> close() async {
+    final db = await database;
+    await db.close();
+    _database = null;
+  }
+
+  Future<void> _upgradeToVersion2(Database db) async {
+    print("🔄 Upgrading to version 2");
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $sectionTable (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        createdAt TEXT
+      )
+    ''');
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN sectionId TEXT');
+
+    final defaultSection = Section(
+      id: 'default_section',
+      name: 'Transações Padrão',
+      createdAt: DateTime.now(),
+    );
+    await db.insert(sectionTable, defaultSection.toMap());
+    await db.execute('UPDATE $transactionTable SET sectionId = ?', ['default_section']);
+  }
+
+  Future<void> _upgradeToVersion3(Database db) async {
+    print("🔄 Upgrading to version 3");
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN docType TEXT');
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN monthRef TEXT');
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN dueDate TEXT');
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN paid INTEGER DEFAULT 0');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $paidMonthsTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        monthRef TEXT UNIQUE,
+        addedAt TEXT
+      )
+    ''');
+  }
+
+  Future<void> _upgradeToVersion5(Database db) async {
+    print("🔄 Upgrading to version 5");
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $emailsSentTable (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity TEXT,
+        recipient TEXT,
+        subject TEXT,
+        body TEXT,
+        sentAt TEXT
+      )
+    ''');
+  }
+
+  Future<void> _upgradeToVersion6(Database db) async {
+    print("🔄 Upgrading to version 6");
+    await db.execute('ALTER TABLE $emailsSentTable ADD COLUMN emission_date TEXT');
+    await db.execute('ALTER TABLE $transactionTable ADD COLUMN entity TEXT DEFAULT ""');
+  }
+
+  Future<void> _upgradeToVersion7(Database db) async {
+    print("🔄 Upgrading to version 7");
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $reservedAmountsTable (
+        id TEXT PRIMARY KEY,
+        sectionId TEXT NOT NULL,
+        description TEXT NOT NULL,
+        amount REAL NOT NULL,
+        createdAt INTEGER NOT NULL,
+        FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
+      )
+    ''');
+  }
+
+  Future<void> _upgradeToVersion8(Database db) async {
+    print("🔄 Upgrading to version 8 - Adding numeroSerie and metodoPagamento");
+    try {
+      await db.execute('ALTER TABLE $transactionTable ADD COLUMN numeroSerie TEXT');
+      print("✅ Added numeroSerie column");
+    } catch (e) {
+      print("ℹ️ numeroSerie column already exists: $e");
+    }
+
+    try {
+      await db.execute('ALTER TABLE $transactionTable ADD COLUMN metodoPagamento TEXT');
+      print("✅ Added metodoPagamento column");
+    } catch (e) {
+      print("ℹ️ metodoPagamento column already exists: $e");
+    }
+  }
+
+  Future<bool> verifyTransactionSaved(String transactionId) async {
+    final db = await database;
+    final result = await db.query(
+      transactionTable,
+      where: 'id = ?',
+      whereArgs: [transactionId],
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<List<Map<String, dynamic>>> debugGetAllTransactions() async {
+    final db = await database;
+    return await db.query(transactionTable);
+  }
+
+  Future<void> addSection(Section section) async {
+    final db = await database;
+    await db.insert(sectionTable, section.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> updateSection(Section section) async {
+    final db = await database;
+    await db.update(
+      sectionTable,
+      section.toMap(),
+      where: 'id = ?',
+      whereArgs: [section.id],
+    );
+  }
+
+  Future<void> deleteSection(String id) async {
+    final db = await database;
+    await db.delete(transactionTable, where: 'sectionId = ?', whereArgs: [id]);
+    await db
+        .delete(reservedAmountsTable, where: 'sectionId = ?', whereArgs: [id]);
+    await db.delete(sectionTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<Section>> getAllSections() async {
+    final db = await database;
+    final maps = await db.query(sectionTable, orderBy: 'createdAt DESC');
+    return maps.map((map) => Section.fromMap(map)).toList();
   }
 
   Future<List<trns.Transaction>> getPayProof(String sectionId) async {
@@ -230,14 +534,6 @@ class DatabaseService {
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
   }
 
-  Future<trns.Transaction?> getTransactionById(String id) async {
-    final db = await database;
-    final maps = await db.query(transactionTable, where: 'id = ?', whereArgs: [id]);
-    if (maps.isEmpty) return null;
-    return trns.Transaction.fromMap(maps.first);
-  }
-
-  // Métodos para Paid Months
   Future<List<String>> getPaidMonths() async {
     final db = await database;
     final maps = await db.query(paidMonthsTable, orderBy: 'addedAt DESC');
@@ -253,7 +549,6 @@ class DatabaseService {
     );
   }
 
-  // Métodos para Emails
   Future<void> addSentEmail(Map<String, dynamic> emailData) async {
     final db = await database;
     await db.insert(
@@ -274,14 +569,10 @@ class DatabaseService {
     );
   }
 
-  // NOVOS MÉTODOS PARA RESERVED AMOUNTS
   Future<void> insertReservedAmount(ReservedAmount reservedAmount) async {
     final db = await database;
-    await db.insert(
-        reservedAmountsTable,
-        reservedAmount.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace
-    );
+    await db.insert(reservedAmountsTable, reservedAmount.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<List<ReservedAmount>> getReservedAmounts(String sectionId) async {
@@ -314,7 +605,6 @@ class DatabaseService {
     );
   }
 
-  // Método auxiliar para obter o total reservado
   Future<double> getTotalReservedAmount(String sectionId) async {
     final db = await database;
     final result = await db.rawQuery('''
@@ -327,20 +617,4 @@ class DatabaseService {
     return total ?? 0.0;
   }
 
-  // Método para limpar todas as tabelas (útil para desenvolvimento)
-  Future<void> clearAllData() async {
-    final db = await database;
-    await db.delete(reservedAmountsTable);
-    await db.delete(transactionTable);
-    await db.delete(sectionTable);
-    await db.delete(paidMonthsTable);
-    await db.delete(emailsSentTable);
-  }
-
-  // Método para fechar a base de dados
-  Future<void> close() async {
-    final db = await database;
-    await db.close();
-    _database = null;
-  }
 }

@@ -1,4 +1,3 @@
-// widgets/reserved_amount_tile.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/reserved_amount.dart';
