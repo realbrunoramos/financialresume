@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
 import '../theme/colors.dart';
@@ -22,11 +23,125 @@ class _TransactionWithBalance {
   });
 }
 
-class SummaryScreen extends StatelessWidget {
+class SummaryScreen extends StatefulWidget {
   final String sectionId;
-  final DatabaseService dbService = DatabaseService();
 
-  SummaryScreen({required this.sectionId});
+  const SummaryScreen({required this.sectionId});
+
+  @override
+  _SummaryScreenState createState() => _SummaryScreenState();
+}
+
+class _SummaryScreenState extends State<SummaryScreen> {
+  final DatabaseService dbService = DatabaseService();
+  List<String> _selectedMonths = [];
+  List<Transaction> _allTransactions = [];
+  bool _isLoading = true;
+  bool _isExporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTransactions();
+  }
+
+  Future<void> _loadTransactions() async {
+    try {
+      final transactions = await dbService.getAllTransactions(widget.sectionId);
+      setState(() {
+        _allTransactions = transactions;
+        // Selecionar todos os meses por padrão
+        _selectedMonths = _getAvailableMonths();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<String> _getAvailableMonths() {
+    final months = <String>{};
+    for (final transaction in _allTransactions) {
+      final monthKey = DateFormat('yyyy-MM').format(transaction.date);
+      months.add(monthKey);
+    }
+    return months.toList()..sort((a, b) => b.compareTo(a));
+  }
+
+  List<Transaction> _getFilteredTransactions() {
+    if (_selectedMonths.isEmpty) return _allTransactions;
+
+    return _allTransactions.where((transaction) {
+      final monthKey = DateFormat('yyyy-MM').format(transaction.date);
+      return _selectedMonths.contains(monthKey);
+    }).toList();
+  }
+
+  void _showMonthSelectionDialog() {
+    final availableMonths = _getAvailableMonths();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(AppLocalizations.of(context).selectMonths),
+          content: Container(
+            width: double.maxFinite,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                ...availableMonths.map((monthKey) {
+                  final monthDate = DateFormat('yyyy-MM').parse(monthKey);
+                  final monthName = DateFormat('MMMM yyyy', AppLocalizations.of(context).monthName).format(monthDate);
+
+                  return CheckboxListTile(
+                    title: Text(monthName),
+                    value: _selectedMonths.contains(monthKey),
+                    onChanged: (selected) {
+                      setDialogState(() {
+                        if (selected == true) {
+                          _selectedMonths.add(monthKey);
+                        } else {
+                          _selectedMonths.remove(monthKey);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setDialogState(() {
+                  _selectedMonths = availableMonths.toList();
+                });
+              },
+              child: Text(AppLocalizations.of(context).selectAll),
+            ),
+            TextButton(
+              onPressed: () {
+                setDialogState(() {
+                  _selectedMonths.clear();
+                });
+              },
+              child: Text(AppLocalizations.of(context).clear),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                setState(() {});
+              },
+              child: Text(AppLocalizations.of(context).apply),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   img.Image _createSimpleDonutChart({required double despesa, required double receita}) {
     const size = 400;
@@ -73,6 +188,11 @@ class SummaryScreen extends StatelessWidget {
     final Map<String, Map<String, dynamic>> monthlyData = {};
 
     monthlyTransactions.forEach((monthKey, monthTransactions) {
+      // Apenas processar meses selecionados
+      if (_selectedMonths.isNotEmpty && !_selectedMonths.contains(monthKey)) {
+        return;
+      }
+
       monthTransactions.sort((a, b) => a.date.compareTo(b.date));
 
       double runningBalance = 0;
@@ -100,7 +220,7 @@ class SummaryScreen extends StatelessWidget {
       final monthBalance = monthIncome - monthExpenses;
 
       final monthDate = DateFormat('yyyy-MM').parse(monthKey);
-      final monthName = DateFormat('MMMM yyyy', 'pt_PT').format(monthDate);
+      final monthName = DateFormat('MMMM yyyy', AppLocalizations.of(context).monthName).format(monthDate);
 
       monthlyData[monthKey] = {
         'monthName': monthName,
@@ -153,7 +273,6 @@ class SummaryScreen extends StatelessWidget {
   pw.Widget _buildStatCard(String title, String value, PdfColor color, pw.MemoryImage icon, String percentage) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
-
       child: pw.Row(
         children: [
           pw.Container(
@@ -204,11 +323,28 @@ class SummaryScreen extends StatelessWidget {
   }
 
   Future<void> _exportToPdf(BuildContext context) async {
+    if (_isExporting || !_canExport()) return;
+
+    setState(() {
+      _isExporting = true;
+    });
+
     try {
+      final loc = AppLocalizations.of(context);
       final pdf = pw.Document();
-      final transactions = await dbService.getAllTransactions(sectionId);
+      final filteredTransactions = _getFilteredTransactions();
       final format = DateFormat('dd/MM/yyyy');
       final now = DateTime.now();
+
+      if (filteredTransactions.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).noTransactionsSelectedForExport),
+            backgroundColor: AppColors.red,
+          ),
+        );
+        return;
+      }
 
       final ByteData incomeIconData = await rootBundle.load('assets/images/money_gain.png');
       final ByteData expensesIconData = await rootBundle.load('assets/images/money_loose.png');
@@ -216,8 +352,8 @@ class SummaryScreen extends StatelessWidget {
       final incomeIcon = pw.MemoryImage(incomeIconData.buffer.asUint8List());
       final expensesIcon = pw.MemoryImage(expensesIconData.buffer.asUint8List());
 
-      final totalIncome = transactions.where((t) => t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
-      final totalExpenses = transactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
+      final totalIncome = filteredTransactions.where((t) => t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
+      final totalExpenses = filteredTransactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
       final balance = totalIncome - totalExpenses;
 
       final donutImage = _createSimpleDonutChart(despesa: totalExpenses, receita: totalIncome);
@@ -231,8 +367,9 @@ class SummaryScreen extends StatelessWidget {
       final ByteData appImageBytes = await rootBundle.load('assets/images/app_logo.png');
       final Uint8List appImageData = appImageBytes.buffer.asUint8List();
 
-      final monthlyData = _prepareMonthlyTablesData(transactions);
+      final monthlyData = _prepareMonthlyTablesData(filteredTransactions);
 
+      // Página de resumo
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -241,6 +378,7 @@ class SummaryScreen extends StatelessWidget {
             return pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
+                // Cabeçalho
                 pw.Container(
                   margin: const pw.EdgeInsets.only(bottom: 20),
                   child: pw.Row(
@@ -259,14 +397,21 @@ class SummaryScreen extends StatelessWidget {
                           crossAxisAlignment: pw.CrossAxisAlignment.start,
                           children: [
                             pw.Text(
-                              'Relatório - Resumo Financeiro',
+                              loc.financialSummaryReport,
                               style: pw.TextStyle(
                                 fontSize: 16,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
                             pw.Text(
-                              DateFormat('dd/MM/yyyy').format(now),
+                              '${loc.periodVariable} ${_getSelectedMonthsRange()}',
+                              style: pw.TextStyle(
+                                fontSize: 10,
+                                color: PdfColors.grey600,
+                              ),
+                            ),
+                            pw.Text(
+                              '${loc.generatedOn} ${DateFormat('dd/MM/yyyy').format(now)}',
                               style: pw.TextStyle(
                                 fontSize: 10,
                                 color: PdfColors.grey600,
@@ -279,6 +424,7 @@ class SummaryScreen extends StatelessWidget {
                   ),
                 ),
 
+                // Visão Geral
                 pw.Container(
                   margin: const pw.EdgeInsets.only(bottom: 20),
                   padding: const pw.EdgeInsets.all(16),
@@ -286,7 +432,7 @@ class SummaryScreen extends StatelessWidget {
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Text(
-                        'Visão Geral',
+                        loc.overviewOfSelectedPeriod,
                         style: pw.TextStyle(
                           fontSize: 18,
                           fontWeight: pw.FontWeight.bold,
@@ -309,12 +455,25 @@ class SummaryScreen extends StatelessWidget {
                             child: pw.Column(
                               crossAxisAlignment: pw.CrossAxisAlignment.start,
                               children: [
-                                _buildStatCard('Total Receitas', formatCurrency(totalIncome),
-                                    PdfColors.green, incomeIcon, '${((totalIncome / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'),
+                                _buildStatCard(
+                                    loc.totalIncome,
+                                    formatCurrency(totalIncome),
+                                    PdfColors.green,
+                                    incomeIcon,
+                                    totalIncome + totalExpenses > 0
+                                        ? '${((totalIncome / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'
+                                        : '0%'
+                                ),
                                 pw.SizedBox(height: 10),
-                                _buildStatCard('Total Despesas', formatCurrency(totalExpenses),
-                                    PdfColors.red, expensesIcon, '${((totalExpenses / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'),
-
+                                _buildStatCard(
+                                    loc.totalExpenses,
+                                    formatCurrency(totalExpenses),
+                                    PdfColors.red,
+                                    expensesIcon,
+                                    totalIncome + totalExpenses > 0
+                                        ? '${((totalExpenses / (totalIncome + totalExpenses)) * 100).toStringAsFixed(1)}%'
+                                        : '0%'
+                                ),
                               ],
                             ),
                           ),
@@ -324,6 +483,7 @@ class SummaryScreen extends StatelessWidget {
                   ),
                 ),
 
+                // Situação Financeira
                 pw.Container(
                   padding: const pw.EdgeInsets.all(16),
                   decoration: pw.BoxDecoration(
@@ -337,7 +497,7 @@ class SummaryScreen extends StatelessWidget {
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'SITUAÇÃO FINANCEIRA ATUAL',
+                            loc.financialSituationOfPeriod,
                             style: pw.TextStyle(
                               fontSize: 12,
                               fontWeight: pw.FontWeight.bold,
@@ -346,7 +506,7 @@ class SummaryScreen extends StatelessWidget {
                           ),
                           pw.SizedBox(height: 4),
                           pw.Text(
-                            balance >= 0 ? 'Saldo Positivo' : 'Saldo Negativo',
+                            balance >= 0 ? loc.positiveBalance : loc.negativeBalance,
                             style: pw.TextStyle(
                               fontSize: 14,
                               fontWeight: pw.FontWeight.bold,
@@ -367,8 +527,39 @@ class SummaryScreen extends StatelessWidget {
                   ),
                 ),
 
+                pw.SizedBox(height: 20),
+
+                // Resumo dos meses selecionados
+                if (monthlyData.isNotEmpty)
+                  pw.Text(
+                    loc.monthsIncludedInReport,
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                pw.SizedBox(height: 8),
+                pw.Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: monthlyData.values.map((data) {
+                    return pw.Container(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.blue50,
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.Text(
+                        data['monthName'],
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                    );
+                  }).toList(),
+                ),
+
                 pw.Spacer(),
 
+                // Rodapé
                 pw.Container(
                   margin: const pw.EdgeInsets.only(top: 20),
                   padding: const pw.EdgeInsets.all(12),
@@ -376,7 +567,7 @@ class SummaryScreen extends StatelessWidget {
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        'Financial Resume App - by Bruno Ramos',
+                        'Financial Resume App',
                         style: const pw.TextStyle(
                           fontSize: 9,
                           color: PdfColors.grey600,
@@ -390,6 +581,8 @@ class SummaryScreen extends StatelessWidget {
           },
         ),
       );
+
+      // Páginas dos meses
 
       monthlyData.forEach((monthKey, data) {
         pdf.addPage(
@@ -431,9 +624,9 @@ class SummaryScreen extends StatelessWidget {
                     child: pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                       children: [
-                        _buildMonthSummaryItem('Receitas', formatValue(data['monthIncome']), PdfColors.green),
-                        _buildMonthSummaryItem('Despesas', formatValue(data['monthExpenses']), PdfColors.red),
-                        _buildMonthSummaryItem('Saldo', formatValue(data['monthBalance']),
+                        _buildMonthSummaryItem(loc.income, formatValue(data['monthIncome']), PdfColors.green),
+                        _buildMonthSummaryItem(loc.expenses, formatValue(data['monthExpenses']), PdfColors.red),
+                        _buildMonthSummaryItem(loc.balance, formatValue(data['monthBalance']),
                             data['monthBalance'] >= 0 ? PdfColors.green : PdfColors.red),
                       ],
                     ),
@@ -462,7 +655,7 @@ class SummaryScreen extends StatelessWidget {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  'DATA',
+                                  loc.dateHeader,
                                   style: pw.TextStyle(
                                     fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
@@ -474,7 +667,7 @@ class SummaryScreen extends StatelessWidget {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  'DESCRIÇÃO',
+                                  loc.descriptionHeader,
                                   style: pw.TextStyle(
                                     fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
@@ -486,7 +679,7 @@ class SummaryScreen extends StatelessWidget {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  'VALOR',
+                                  loc.valueHeader,
                                   style: pw.TextStyle(
                                     fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
@@ -498,7 +691,7 @@ class SummaryScreen extends StatelessWidget {
                               pw.Padding(
                                 padding: const pw.EdgeInsets.all(10),
                                 child: pw.Text(
-                                  'SALDO',
+                                  loc.balanceHeader,
                                   style: pw.TextStyle(
                                     fontSize: 10,
                                     fontWeight: pw.FontWeight.bold,
@@ -574,6 +767,24 @@ class SummaryScreen extends StatelessWidget {
                     ),
                   ),
 
+                  // Rodapé da página
+                  pw.Container(
+                    margin: const pw.EdgeInsets.only(top: 10),
+                    padding: const pw.EdgeInsets.all(12),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          'Financial Resume App',
+                          style: const pw.TextStyle(
+                            fontSize: 9,
+                            color: PdfColors.grey600,
+                          ),
+                        ),
+
+                      ],
+                    ),
+                  ),
                 ],
               );
             },
@@ -582,13 +793,13 @@ class SummaryScreen extends StatelessWidget {
       });
 
       final output = await getTemporaryDirectory();
-      final fileName = 'resumo_financeiro_${DateFormat('yyyyMMdd_HHmm').format(now)}.pdf';
+      final fileName = 'financial_resume_${DateFormat('yyyy_MM').format(now)}.pdf';
       final file = File('${output.path}/$fileName');
       await file.writeAsBytes(await pdf.save());
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('PDF gerado com sucesso!'),
+        SnackBar(
+          content: Text(AppLocalizations.of(context).exportedPdf),
           backgroundColor: AppColors.green,
         ),
       );
@@ -597,7 +808,7 @@ class SummaryScreen extends StatelessWidget {
       if (openResult.type != ResultType.done) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro ao abrir PDF. Ficheiro salvo em: ${file.path}'),
+            content: Text('${AppLocalizations.of(context).errorOpeningPdfFileSavedIn} ${file.path}'),
             backgroundColor: AppColors.red,
           ),
         );
@@ -605,15 +816,30 @@ class SummaryScreen extends StatelessWidget {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Erro ao gerar PDF: $e'),
+          content: Text('${AppLocalizations.of(context).errorGeneratingPdf} $e'),
           backgroundColor: AppColors.red,
         ),
       );
+    } finally {
+      setState(() {
+        _isExporting = false;
+      });
     }
   }
 
-  Map<String, List<Transaction>> _groupTransactionsByMonth(
-      List<Transaction> transactions) {
+  String _getSelectedMonthsRange() {
+    if (_selectedMonths.isEmpty) return AppLocalizations.of(context).noMonthSelected;
+
+    final months = _selectedMonths.map((key) {
+      final date = DateFormat('yyyy-MM').parse(key);
+      return DateFormat('MMMM yyyy', 'pt_PT').format(date);
+    }).toList();
+
+    if (months.length == 1) return months.first;
+    return '${months.length} ${AppLocalizations.of(context).selectMonths}';
+  }
+
+  Map<String, List<Transaction>> _groupTransactionsByMonth(List<Transaction> transactions) {
     final Map<String, List<Transaction>> monthlyMap = {};
 
     for (final transaction in transactions) {
@@ -658,13 +884,70 @@ class SummaryScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildMonthFilterChip() {
+    final hasSelectedMonths = _selectedMonths.isNotEmpty;
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    FilterChip(
+                      label: Text(
+                        _selectedMonths.isEmpty
+                            ? AppLocalizations.of(context).noMonthSelected
+                            : '${_selectedMonths.length} ${AppLocalizations.of(context).months}',
+                      ),
+                      selected: hasSelectedMonths,
+                      onSelected: (_) => _showMonthSelectionDialog(),
+                      backgroundColor: hasSelectedMonths ? AppColors.blue : AppColors.grey,
+                      selectedColor: AppColors.blue,
+                      labelStyle: TextStyle(color: AppColors.white),
+                      checkmarkColor: AppColors.white,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.filter_list, color: AppColors.dark),
+                onPressed: _showMonthSelectionDialog,
+                tooltip: AppLocalizations.of(context).filterMonths,
+              ),
+            ],
+          ),
+          if (!hasSelectedMonths)
+            Padding(
+              padding: const EdgeInsets.only(left: 8, top: 4),
+              child: Text(
+                AppLocalizations.of(context).selectAtLeastOneMonthToExport,
+                style: TextStyle(
+                  color: AppColors.red,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool _canExport() {
+    return _selectedMonths.isNotEmpty && _getFilteredTransactions().isNotEmpty;
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.light,
       appBar: AppBar(
         title: Text(
-          'Resumo Financeiro',
+          AppLocalizations.of(context).financialSummary,
           style: TextStyle(
             color: AppColors.white,
             fontWeight: FontWeight.bold,
@@ -673,105 +956,104 @@ class SummaryScreen extends StatelessWidget {
         backgroundColor: AppColors.dark,
         iconTheme: IconThemeData(color: AppColors.white),
         actions: [
-          IconButton(
-            icon: Icon(Icons.download, color: AppColors.white),
-            onPressed: () => _exportToPdf(context),
-            tooltip: 'Exportar para PDF',
-          ),
+          if (!_isLoading && _allTransactions.isNotEmpty)
+            IconButton(
+              icon: _isExporting
+                  ? SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                ),
+              )
+                  : Icon(Icons.download, color: _selectedMonths.isEmpty ? AppColors.grey : AppColors.white),
+              onPressed: _isExporting || _selectedMonths.isEmpty ? null : () => _exportToPdf(context),
+              tooltip: _selectedMonths.isEmpty ? AppLocalizations.of(context).selectMonthsToExport : AppLocalizations.of(context).exportToPdf,
+            ),
         ],
       ),
-      body: FutureBuilder<List<Transaction>>(
-        future: dbService.getAllTransactions(sectionId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.dark),
+      body: _isLoading
+          ? Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.dark),
+        ),
+      )
+          : _allTransactions.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.receipt_long,
+              color: AppColors.grey,
+              size: 64,
+            ),
+            SizedBox(height: 16),
+            Text(
+              AppLocalizations.of(context).noTransactionsToDisplay,
+              style: TextStyle(
+                color: AppColors.grey,
+                fontSize: 18,
               ),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: AppColors.red,
-                    size: 64,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Erro ao carregar transações',
-                    style: TextStyle(
-                      color: AppColors.dark,
-                      fontSize: 18,
-                    ),
-                  ),
-                ],
+            ),
+            SizedBox(height: 8),
+            Text(
+              AppLocalizations.of(context).addTransactionsToViewSummary,
+              style: TextStyle(
+                color: AppColors.grey,
               ),
-            );
-          }
+            ),
+          ],
+        ),
+      )
+          : Column(
+        children: [
+          _buildMonthFilterChip(),
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.receipt_long,
-                    color: AppColors.grey,
-                    size: 64,
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Nenhuma transação para exibir',
-                    style: TextStyle(
-                      color: AppColors.grey,
-                      fontSize: 18,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Adicione transações para ver o resumo',
-                    style: TextStyle(
-                      color: AppColors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final transactions = snapshot.data!;
-          final format = DateFormat('dd/MM/yyyy HH:mm');
-          final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-
-          final totalBalance = transactions.fold<double>(
-              0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount));
-
-          return Column(
-            children: [
-              Container(
-                margin: EdgeInsets.all(16),
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.black.withAlpha(100),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
+          // Cartão de Saldo
+          Container(
+            margin: EdgeInsets.all(16),
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.black.withAlpha(100),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
                 ),
-                child: Row(
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Saldo Total:',
+                      AppLocalizations.of(context).periodLabel,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                    Text(
+                      _getSelectedMonthsRange(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      AppLocalizations.of(context).totalBalance,
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -779,155 +1061,229 @@ class SummaryScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      currency.format(totalBalance),
+                      NumberFormat.currency(locale: 'pt_PT', symbol: '€')
+                          .format(_getFilteredTransactions().fold<double>(
+                          0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount))),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color:
-                            totalBalance >= 0 ? AppColors.green : AppColors.red,
+                        color: _getFilteredTransactions().fold<double>(
+                            0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount)) >= 0
+                            ? AppColors.green
+                            : AppColors.red,
                       ),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: Container(
-                  margin: EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.black.withAlpha(100),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      child: DataTable(
-                        columnSpacing: 20,
-                        horizontalMargin: 16,
-                        headingRowColor:
-                            WidgetStateProperty.all(AppColors.dark),
-                        columns: [
-                          DataColumn(
-                            label: Text(
-                              'Data',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Text(
-                              'Descrição',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Text(
-                              'Valor',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          DataColumn(
-                            label: Text(
-                              'Faturas',
-                              style: TextStyle(
-                                color: AppColors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                        rows: transactions.map((t) {
-                          return DataRow(
-                            cells: [
-                              DataCell(
-                                Text(
-                                  format.format(t.date),
-                                  style: TextStyle(color: AppColors.dark),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  t.description,
-                                  style: TextStyle(color: AppColors.dark),
-                                ),
-                              ),
-                              DataCell(
-                                Text(
-                                  "${t.isCredit ? '+' : '-'}${currency.format(t.amount)}",
-                                  style: TextStyle(
-                                    color: t.isCredit
-                                        ? AppColors.green
-                                        : AppColors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      t.receiptPaths.isEmpty
-                                          ? Icons.receipt_outlined
-                                          : Icons.receipt,
-                                      color: t.receiptPaths.isEmpty
-                                          ? AppColors.grey
-                                          : AppColors.blue,
-                                      size: 20,
-                                    ),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      t.receiptPaths.isEmpty
-                                          ? 'Nenhuma'
-                                          : '${t.receiptPaths.length}',
-                                      style: TextStyle(
-                                        color: AppColors.dark,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
-                    ),
+              ],
+            ),
+          ),
+
+          // Estatísticas Rápidas
+          Container(
+            margin: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildQuickStatCard(
+                    AppLocalizations.of(context).income,
+                    _getFilteredTransactions()
+                        .where((t) => t.isCredit)
+                        .fold<double>(0, (sum, t) => sum + t.amount),
+                    AppColors.green,
+                    Icons.trending_up,
                   ),
                 ),
-              ),
-              Container(
-                margin: EdgeInsets.all(16),
-                child: ElevatedButton.icon(
-                  onPressed: () => _exportToPdf(context),
-                  icon: Icon(Icons.picture_as_pdf),
-                  label: Text('Exportar para PDF'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.dark,
-                    foregroundColor: AppColors.white,
-                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: _buildQuickStatCard(
+                    AppLocalizations.of(context).expenses,
+                    _getFilteredTransactions()
+                        .where((t) => !t.isCredit)
+                        .fold<double>(0, (sum, t) => sum + t.amount),
+                    AppColors.red,
+                    Icons.trending_down,
                   ),
+                ),
+              ],
+            ),
+          ),
+
+          // Tabela
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.black.withAlpha(100),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: _buildTransactionsTable(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStatCard(String title, double value, Color color, IconData icon) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withAlpha(50),
+            blurRadius: 4,
+            offset: Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 16),
+              SizedBox(width: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.dark,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ],
-          );
-        },
+          ),
+          SizedBox(height: 4),
+          Text(
+            NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(value),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionsTable() {
+    final filteredTransactions = _getFilteredTransactions();
+    final format = DateFormat('dd/MM/yyyy HH:mm');
+    final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        child: DataTable(
+          columnSpacing: 20,
+          horizontalMargin: 16,
+          headingRowColor: WidgetStateProperty.all(AppColors.dark),
+          columns: [
+            DataColumn(
+              label: Text(
+                AppLocalizations.of(context).date,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                AppLocalizations.of(context).description,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                AppLocalizations.of(context).value,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                AppLocalizations.of(context).invoice,
+                style: TextStyle(
+                  color: AppColors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+          rows: filteredTransactions.map((t) {
+            return DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    format.format(t.date),
+                    style: TextStyle(color: AppColors.dark),
+                  ),
+                ),
+                DataCell(
+                  Container(
+                    constraints: BoxConstraints(maxWidth: 200),
+                    child: Text(
+                      t.description,
+                      style: TextStyle(color: AppColors.dark),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    "${t.isCredit ? '+' : '-'}${currency.format(t.amount)}",
+                    style: TextStyle(
+                      color: t.isCredit ? AppColors.green : AppColors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        t.receiptPaths.isEmpty
+                            ? Icons.receipt_outlined
+                            : Icons.receipt,
+                        color: t.receiptPaths.isEmpty
+                            ? AppColors.grey
+                            : AppColors.blue,
+                        size: 20,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        t.receiptPaths.isEmpty
+                            ? AppLocalizations.of(context).none
+                            : '${t.receiptPaths.length}',
+                        style: TextStyle(
+                          color: AppColors.dark,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }

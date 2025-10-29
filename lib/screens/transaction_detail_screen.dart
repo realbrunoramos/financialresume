@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
 import 'image_viewer_screen.dart';
@@ -60,12 +61,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
     final format = DateFormat('dd/MM/yyyy');
     final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
     final shareText = '''
-Transação: ${widget.transaction.description}
-Entidade: ${widget.transaction.entity}
-Valor: ${widget.transaction.isCredit ? '+' : '-'} ${currency.format(widget.transaction.amount)}
-Data: ${format.format(widget.transaction.date)}
-Referência: ${widget.transaction.monthRef ?? 'N/A'}
-Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
+${AppLocalizations.of(context).transactionDescription} ${widget.transaction.description}
+${AppLocalizations.of(context).entity} ${widget.transaction.entity}
+${AppLocalizations.of(context).amount} ${widget.transaction.isCredit ? '+' : '-'} ${currency.format(widget.transaction.amount)}
+${AppLocalizations.of(context).dateField} ${format.format(widget.transaction.date)}
+${AppLocalizations.of(context).reference} ${widget.transaction.monthRef ?? 'N/A'}
+${AppLocalizations.of(context).paidStatus} ${widget.transaction.paid ? "${AppLocalizations.of(context).yes}" : "${AppLocalizations.of(context).no}"}
     ''';
     Share.share(shareText);
   }
@@ -116,8 +117,8 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'edit', child: Text('Editar')),
-              const PopupMenuItem(value: 'delete', child: Text('Excluir', style: TextStyle(color: Colors.red))),
+              PopupMenuItem(value: 'edit', child: Text(AppLocalizations.of(context).edit)),
+              PopupMenuItem(value: 'delete', child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
@@ -134,7 +135,7 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
                     width: double.infinity,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [iconColor.withOpacity(0.1), Colors.transparent],
+                        colors: [iconColor.withAlpha(50), Colors.transparent],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                       ),
@@ -177,35 +178,35 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
               const SizedBox(height: 24),
               // Date
               _buildInfoTile(
-                'Data',
+                AppLocalizations.of(context).date,
                 format.format(widget.transaction.date),
                 Icons.calendar_today,
               ),
               // Description
               _buildInfoTile(
-                'Descrição',
+                AppLocalizations.of(context).description,
                 widget.transaction.description,
                 Icons.description,
               ),
               // Month Ref
               if (widget.transaction.monthRef != null && widget.transaction.monthRef!.isNotEmpty)
                 _buildInfoTile(
-                  'Referência Mês/Ano',
+                  AppLocalizations.of(context).referenceMonthYear,
                   widget.transaction.monthRef!,
                   Icons.date_range,
                 ),
               // Due Date
               if (widget.transaction.dueDate != null)
                 _buildInfoTile(
-                  'Data Limite',
+                  AppLocalizations.of(context).dueDate,
                   format.format(widget.transaction.dueDate!),
                   Icons.event,
                 ),
               // Paid (escondido para comprovativo e talão)
               if (!isComprovativo && !isTalao)
                 _buildInfoTile(
-                  'Pago',
-                  widget.transaction.paid ? 'Sim' : 'Não',
+                  AppLocalizations.of(context).paid,
+                  widget.transaction.paid ? "${AppLocalizations.of(context).yes}" : "${AppLocalizations.of(context).no}",
                   widget.transaction.paid ? Icons.check_circle : Icons.cancel,
                   trailing: Switch(
                     value: widget.transaction.paid,
@@ -247,8 +248,8 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         child: ListTile(
           leading:  Icon(Icons.attach_file, color: Colors.grey[600]),
-          title: const Text('Anexos', style: TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: const Text('Sem anexos'),
+          title: Text(AppLocalizations.of(context).attachments, style: TextStyle(fontWeight: FontWeight.w500)),
+          subtitle: Text(AppLocalizations.of(context).noAttachments),
         ),
       );
     }
@@ -260,8 +261,8 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ExpansionTile(
         leading: Icon(Icons.attach_file, color: Colors.grey[600]),
-        title: const Text('Anexos', style: TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text('${widget.transaction.receiptPaths.length} ficheiro(s)'),
+        title: Text(AppLocalizations.of(context).attachments, style: TextStyle(fontWeight: FontWeight.w500)),
+        subtitle: Text('${widget.transaction.receiptPaths.length} ${AppLocalizations.of(context).countFiles}'),
         children: widget.transaction.receiptPaths.map((path) => ListTile(
           leading: Image.file(
             File(path),
@@ -288,12 +289,12 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Excluir Transação'),
-        content: const Text('Deseja excluir esta transação?'),
+        title: Text(AppLocalizations.of(context).deleteTransaction),
+        content: Text(AppLocalizations.of(context).confirmDeleteTransaction),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           TextButton(
             onPressed: () async {
@@ -301,10 +302,10 @@ Pago: ${widget.transaction.paid ? 'Sim' : 'Não'}
               Navigator.pop(context);
               Navigator.pop(context);  // Volta para lista
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Transação excluída!')),
+                SnackBar(content: Text(AppLocalizations.of(context).transactionDeleted)),
               );
             },
-            child: const Text('Excluir', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

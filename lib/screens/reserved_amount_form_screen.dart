@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import '../models/reserved_amount.dart';
 import '../services/database_service.dart';
 import '../theme/colors.dart';
@@ -36,7 +37,7 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.reservedAmount == null ? 'Nova Reserva' : 'Editar Reserva'),
+        title: Text(widget.reservedAmount == null ? AppLocalizations.of(context).novaReserva : AppLocalizations.of(context).editarReserva),
         backgroundColor: AppColors.white,
       ),
       body: Padding(
@@ -48,11 +49,11 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: InputDecoration(
-                  labelText: 'Descrição',
+                  labelText: AppLocalizations.of(context).descricao,
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor, insira uma descrição';
+                    return AppLocalizations.of(context).insiraDescricao;
                   }
                   return null;
                 },
@@ -61,16 +62,16 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
               TextFormField(
                 controller: _amountController,
                 decoration: InputDecoration(
-                  labelText: 'Valor a Reservar (€)',
+                  labelText: AppLocalizations.of(context).valorAReservar,
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Por favor, insira um valor';
+                    return AppLocalizations.of(context).insiraValor;
                   }
                   final amount = double.tryParse(value);
                   if (amount == null || amount <= 0) {
-                    return 'Por favor, insira um valor válido';
+                    return AppLocalizations.of(context).insiraValorValido;
                   }
                   return null;
                 },
@@ -78,7 +79,7 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
               SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _saveReservedAmount,
-                child: Text('Guardar Reserva'),
+                child: Text(AppLocalizations.of(context).guardarReserva),
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(double.infinity, 50),
                 ),

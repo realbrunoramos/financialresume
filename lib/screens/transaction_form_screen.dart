@@ -5,11 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mailer/mailer.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
+import '../providers/transaction_provider.dart';
 import '../services/database_service.dart';
 import '../services/file_service.dart';
 import './image_viewer_screen.dart';
 import './scan_file_screen.dart';
+import 'package:provider/provider.dart';
 
 class TransactionFormScreen extends StatefulWidget {
   final Transaction? transaction;
@@ -22,6 +25,7 @@ class TransactionFormScreen extends StatefulWidget {
 }
 
 class _TransactionFormScreenState extends State<TransactionFormScreen> {
+  final DatabaseService dbService = DatabaseService();
   final _formKey = GlobalKey<FormState>();
   final _entityController = TextEditingController();
   final _amountController = TextEditingController();
@@ -103,7 +107,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Configurar Credenciais de Email'),
+        title: Text(AppLocalizations.of(context).configureEmailCredentials),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -119,14 +123,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
             TextField(
               controller: passwordCtrl,
               decoration: InputDecoration(
-                labelText: 'Senha de Aplicação',
-                hintText: 'Para Gmail: use App Password',
+                labelText: AppLocalizations.of(context).appPassword,
+                hintText: AppLocalizations.of(context).forGmailUseAppPassword,
               ),
               obscureText: true,
             ),
             SizedBox(height: 16),
             Text(
-              'Para Gmail: ative a verificação em 2 passos e gere uma senha de aplicação',
+              AppLocalizations.of(context).forGmailEnableTwoStepVerificationAndGenerateAppPassword,
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -138,7 +142,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -152,12 +156,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 });
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Credenciais salvas com sucesso!')),
+                  SnackBar(content: Text(AppLocalizations.of(context).credentialsSavedSuccessfully)),
                 );
                 _showComposeDialog();
               }
             },
-            child: Text('Salvar'),
+            child: Text(AppLocalizations.of(context).save),
           ),
         ],
       ),
@@ -188,8 +192,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     return showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'Selecionar Fatura para Pagamento',
+        title: Text(
+          AppLocalizations.of(context).selectInvoiceForPayment,
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         content: SizedBox(
@@ -224,7 +228,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          invoice.entity.isNotEmpty ? invoice.entity : 'Sem entidade',
+                          invoice.entity.isNotEmpty ? invoice.entity : AppLocalizations.of(context).noEntity,
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -270,8 +274,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                               SizedBox(width: 4),
                               Text(
                                 isOverdue
-                                    ? 'Vencida ${DateFormat('dd/MM').format(invoice.dueDate!)}'
-                                    : 'Vence ${DateFormat('dd/MM').format(invoice.dueDate!)}',
+                                    ? '${AppLocalizations.of(context).overdue} ${DateFormat('dd/MM').format(invoice.dueDate!)}'
+                                    : '${AppLocalizations.of(context).due} ${DateFormat('dd/MM').format(invoice.dueDate!)}',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: isOverdue ? Colors.red : Colors.orange,
@@ -287,7 +291,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     Navigator.pop(context, invoice.id);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Fatura "${invoice.entity}" marcada como paga!'),
+                        content: Text('${AppLocalizations.of(context).invoiceMarkedAsPaid} "${invoice.entity}" ${AppLocalizations.of(context).invoiceMarkedAsPaid2}'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -300,8 +304,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancelar',
+            child: Text(
+              AppLocalizations.of(context).cancel,
               style: TextStyle(color: Colors.grey),
             ),
           ),
@@ -339,8 +343,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 TextField(
                   controller: recipientCtrl,
                   decoration: InputDecoration(
-                    labelText: 'Destinatário',
-                    hintText: 'email@exemplo.com',
+                    labelText: AppLocalizations.of(context).recipient,
+                    hintText: AppLocalizations.of(context).emailExample,
                   ),
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -348,14 +352,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 TextField(
                   controller: subjectCtrl,
                   decoration: InputDecoration(
-                    labelText: 'Assunto',
+                    labelText: AppLocalizations.of(context).subject,
                   ),
                 ),
                 SizedBox(height: 16),
                 TextField(
                   controller: bodyCtrl,
                   decoration: InputDecoration(
-                    labelText: 'Corpo da Mensagem',
+                    labelText: AppLocalizations.of(context).messageBody,
                   ),
                   maxLines: 5,
                 ),
@@ -371,7 +375,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     foregroundColor: Colors.white,
                     minimumSize: Size(double.infinity, 50),
                   ),
-                  child: Text(isGenerating ? 'Gerando...' : 'Gerar Sugestão IA'),
+                  child: Text(isGenerating ? AppLocalizations.of(context).generating : AppLocalizations.of(context).generateAISuggestion),
                 ),
                 if (_receiptPaths.isNotEmpty) ...[
                   SizedBox(height: 16),
@@ -387,7 +391,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Anexo: ${_receiptPaths.first.split('/').last}',
+                            '${AppLocalizations.of(context).attachmentFileName} ${_receiptPaths.first.split('/').last}',
                             style: TextStyle(color: Colors.grey[700]),
                           ),
                         ),
@@ -407,7 +411,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
               onPressed: () async {
                 if (recipientCtrl.text.isEmpty || subjectCtrl.text.isEmpty || bodyCtrl.text.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Preencha todos os campos!')),
+                    SnackBar(content: Text(AppLocalizations.of(context).fillAllFields)),
                   );
                   return;
                 }
@@ -418,7 +422,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   body: bodyCtrl.text,
                 );
               },
-              child: Text('Enviar'),
+              child: Text(AppLocalizations.of(context).send),
             ),
           ],
         ),
@@ -429,7 +433,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Future<void> _generateEmailContent(TextEditingController subjectCtrl, TextEditingController bodyCtrl) async {
     if (_aiAnalysis == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Análise IA não disponível. Escaneie um documento primeiro.')),
+        SnackBar(content: Text(AppLocalizations.of(context).aiAnalysisNotAvailableScanDocumentFirst)),
       );
       return;
     }
@@ -469,10 +473,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     Responda APENAS com um objeto JSON de linha única:
     {"subject": "assunto gerado", "body": "corpo gerado"}
     Sem texto adicional.
+    (Atenção: o output deve ser no idioma: ${AppLocalizations.of(context).promptLanguage})    
     """;
 
     try {
-      const apiKey = "AIzaSyABII33nClj-Qu3oqZAiQQgOEpkZtY4PHo";
+      final apiKey = await dbService.getSetting('gemini_api_key');
 
       Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
 
@@ -517,7 +522,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro na geração IA: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).aiGenerationError} $e')),
         );
       }
     }
@@ -558,13 +563,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Email enviado com sucesso!')),
+          SnackBar(content: Text(AppLocalizations.of(context).emailSentSuccessfully)),
         );
       }
     } on MailerException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao enviar email: ${e.problems.map((p) => '${p.code}: ${p.msg}').join(', ')}')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorSendingEmail} ${e.problems.map((p) => '${p.code}: ${p.msg}').join(', ')}')),
         );
       }
     } catch (e) {
@@ -736,7 +741,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     );
   }
 
-  void _saveTransaction(String? idInvoiceRef, DateTime date) async{
+  void _saveTransaction(String? idInvoiceRef, DateTime date) async {
     if (_formKey.currentState!.validate()) {
       if (_selectedDocType == '3' && idInvoiceRef != null && idInvoiceRef != 'UNKNOWN') {
         _mergeWithInvoice(idInvoiceRef, date);
@@ -762,13 +767,21 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         metodoPagamento: _paymentMethod,
       );
 
-      if (widget.transaction == null) {
-        _dbService.addTransaction(transaction);
-      } else {
-        _dbService.updateTransaction(transaction);
-      }
+      try {
+        //final transactionProvider = context.read<TransactionProvider>();
 
-      Navigator.pop(context);
+        if (widget.transaction == null) {
+          await _dbService.addTransaction(transaction);
+        } else {
+          await _dbService.updateTransaction(transaction);
+        }
+
+        Navigator.pop(context, true);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${AppLocalizations.of(context).errorSavingTransaction} $e')),
+        );
+      }
     }
   }
 
@@ -796,12 +809,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         await _dbService.updateTransaction(updatedInvoice);
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fatura marcada como paga com comprovativo!')),
+          SnackBar(content: Text(AppLocalizations.of(context).invoiceMarkedPaidWithProof)),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro no merge: $e')),
+        SnackBar(content: Text('${AppLocalizations.of(context).mergeError} $e')),
       );
     }
     Navigator.pop(context);
@@ -813,12 +826,12 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       backgroundColor: Color.fromARGB(250, 250, 250, 250),
       appBar: AppBar(
         backgroundColor: Color.fromARGB(210, 240, 240, 240),
-        title: Text(widget.transaction == null ? 'Nova Transação' : 'Editar Transação'),
+        title: Text(widget.transaction == null ? AppLocalizations.of(context).newTransaction : AppLocalizations.of(context).editTransaction),
         actions: [
           IconButton(
             icon: Icon(Icons.email),
             onPressed: _handleEmailSend,
-            tooltip: 'Enviar Email',
+            tooltip: AppLocalizations.of(context).sendEmail,
           ),
         ],
       ),
@@ -851,7 +864,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           height: 110,
                           child: _buildDocTypeButton(
                             icon: Icons.qr_code,
-                            label: 'Talão',
+                            label: AppLocalizations.of(context).receipt,
                             docType: '1',
                           ),
                         ),
@@ -862,7 +875,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           height: 110,
                           child: _buildDocTypeButton(
                             icon: Icons.insert_chart_rounded,
-                            label: 'Nota de Cobrança',
+                            label: AppLocalizations.of(context).chargeNote,
                             docType: '2',
                           ),
                         ),
@@ -873,7 +886,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           height: 110,
                           child: _buildDocTypeButton(
                             icon: Icons.paid,
-                            label: 'Comprovativo',
+                            label: AppLocalizations.of(context).proof,
                             docType: '3',
                           ),
                         ),
@@ -883,7 +896,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ),
 
                 SizedBox(height: 24),
-
 
                 Container(
                   padding: EdgeInsets.all(20),
@@ -903,8 +915,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       TextFormField(
                         controller: _entityController,
                         decoration: InputDecoration(
-                          labelText: 'Entidade',
-                          hintText: 'Nome da loja ou empresa',
+                          labelText: AppLocalizations.of(context).entity,
+                          hintText: AppLocalizations.of(context).personOrCompanyName,
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -912,16 +924,16 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       TextFormField(
                         controller: _amountController,
                         decoration: InputDecoration(
-                          labelText: 'Valor (€)',
+                          labelText: '${AppLocalizations.of(context).valueEuro}',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Informe o valor';
+                            return AppLocalizations.of(context).informValue;
                           }
                           if (double.tryParse(value) == null || double.parse(value) <= 0) {
-                            return 'Informe um valor válido';
+                            return AppLocalizations.of(context).informValidValue;
                           }
                           return null;
                         },
@@ -930,8 +942,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       TextFormField(
                         controller: _descriptionController,
                         decoration: InputDecoration(
-                          labelText: 'Descrição',
-                          hintText: 'Descrição da transação',
+                          labelText: AppLocalizations.of(context).description,
+                          hintText: AppLocalizations.of(context).transactionDescription,
                           border: OutlineInputBorder(),
                         ),
                         maxLines: 2,
@@ -940,7 +952,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       TextFormField(
                         controller: _dateController,
                         decoration: InputDecoration(
-                          labelText: 'Data',
+                          labelText: AppLocalizations.of(context).date,
                           border: OutlineInputBorder(),
                           suffixIcon: Icon(Icons.calendar_today),
                         ),
@@ -948,7 +960,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         onTap: () => _selectDate(context),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return 'Informe a data';
+                            return AppLocalizations.of(context).informDate;
                           }
                           return null;
                         },
@@ -960,7 +972,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         TextFormField(
                           controller: _monthRefController,
                           decoration: InputDecoration(
-                            labelText: 'Referência mês e ano',
+                            labelText: AppLocalizations.of(context).monthYearReference,
                             border: OutlineInputBorder(),
                             suffixIcon: Icon(Icons.calendar_today),
                           ),
@@ -974,7 +986,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         TextFormField(
                           controller: _dueDateController,
                           decoration: InputDecoration(
-                            labelText: 'Data Limite',
+                            labelText: AppLocalizations.of(context).deadline,
                             border: OutlineInputBorder(),
                             suffixIcon: Icon(Icons.calendar_today),
                           ),
@@ -994,7 +1006,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ),
                           child: SwitchListTile(
                             title: Text(
-                              'Pago',
+                              AppLocalizations.of(context).paid,
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             value: _paidToggle ?? false,
@@ -1017,10 +1029,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           ),
                           child: SwitchListTile(
                             title: Text(
-                              'É crédito?',
+                              AppLocalizations.of(context).isCredit,
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            subtitle: Text(_isCreditToggle ? 'Sim' : 'Não'),
+                            subtitle: Text(_isCreditToggle ? AppLocalizations.of(context).yes : AppLocalizations.of(context).no),
                             value: _isCreditToggle,
                             onChanged: (value) {
                               setState(() {
@@ -1038,7 +1050,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ElevatedButton.icon(
                   onPressed: _scanDocument,
                   icon: Icon(Icons.document_scanner),
-                  label: Text('Escanear Documento'),
+                  label: Text(AppLocalizations.of(context).scanDocument),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,
                     foregroundColor: Colors.white,
@@ -1066,7 +1078,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     children: [
 
                       Text(
-                        'Anexos',
+                        AppLocalizations.of(context).attachments,
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -1086,7 +1098,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                                 color: Colors.grey[400]),
                             SizedBox(height: 8),
                             Text(
-                              'Nenhum anexo adicionado',
+                              AppLocalizations.of(context).noAttachmentsAdded,
                               style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
@@ -1166,7 +1178,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 ElevatedButton(
                   onPressed: () => _saveTransaction(_idInvoiceRef, _selectedDate),
                   child: Text(
-                    'Salvar Transação',
+                    AppLocalizations.of(context).saveTransaction,
                     style: TextStyle(fontSize: 16),
                   ),
                   style: ElevatedButton.styleFrom(

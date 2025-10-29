@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:share_plus/share_plus.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/colors.dart';
 
 class ImageViewerScreen extends StatelessWidget {
@@ -12,7 +13,7 @@ class ImageViewerScreen extends StatelessWidget {
   Future<void> _shareImage() async {
     final file = File(imagePath);
     if (await file.exists()) {
-      await Share.shareXFiles([XFile(imagePath)], text: 'Fatura da transação');
+      await Share.shareXFiles([XFile(imagePath)], text: "Transaction Invoice");
     }
   }
 
@@ -20,7 +21,7 @@ class ImageViewerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Visualizar Fatura'),
+        title: Text(AppLocalizations.of(context).visualizarFatura),
         backgroundColor: AppColors.white,
         actions: [
           IconButton(

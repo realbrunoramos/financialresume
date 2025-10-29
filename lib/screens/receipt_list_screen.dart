@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
 import './image_viewer_screen.dart';
 import '../theme/colors.dart';
 
@@ -12,11 +13,11 @@ class ReceiptListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Faturas da Transação'),
+        title: Text(AppLocalizations.of(context).faturaTransacao),
         backgroundColor: AppColors.white,
       ),
       body: receiptPaths.isEmpty
-          ? Center(child: Text('Nenhuma fatura anexada.'))
+          ? Center(child: Text(AppLocalizations.of(context).noInvoiceAttached))
           : GridView.builder(
         padding: EdgeInsets.all(16),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

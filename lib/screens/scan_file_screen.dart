@@ -10,8 +10,11 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as imge;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import '../l10n/app_localizations.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import '../theme/colors.dart';
+
 
 class TextBasedDocumentImageProcessor {
   final File _imageFile;
@@ -24,7 +27,6 @@ class TextBasedDocumentImageProcessor {
   RecognizedText? _recognizedText;
   List<TextBlock> textGroup = [];
 
-  final ImageBasedLightDetector _lightDetector = ImageBasedLightDetector();
   Map<String, dynamic> _lightAnalysis = {};
 
   TextBasedDocumentImageProcessor(this._imageFile);
@@ -36,15 +38,6 @@ class TextBasedDocumentImageProcessor {
       if (originalImage == null || originalImage!.width <= 0 || originalImage!.height <= 0) {
         throw Exception('Imagem inválida: Não foi possível decodificar ou dimensões inválidas');
       }
-
-      final lightCondition = await _lightDetector.analyzeImageBrightness(originalImage!);
-      _lightAnalysis = _lightDetector.getDetailedAnalysis(originalImage!);
-
-      print('🔍 Análise de Luminosidade:');
-      print('   - Condição: $lightCondition');
-      print('   - Brilho: ${_lightDetector.getCurrentBrightness().toStringAsFixed(3)}');
-      print('   - Contraste: ${_lightAnalysis['contrast']?.toStringAsFixed(3)}');
-      print('   - Recomendação: ${_lightAnalysis['recommended_enhancement']}');
 
       await _processImage();
 
@@ -83,9 +76,7 @@ class TextBasedDocumentImageProcessor {
       }
 
       final imageToEnhance = modifiedImage ?? originalImage!;
-      finalImage = _applyAdaptiveDocumentEnhancement(imageToEnhance, lightCondition);
-
-      print('✅ Processamento adaptativo aplicado: $lightCondition');
+      finalImage = applyManualFilter(imageToEnhance, 2);
 
     } catch (e) {
       rethrow;
@@ -96,10 +87,7 @@ class TextBasedDocumentImageProcessor {
     imge.Image filteredImage = imge.copyResize(image, width: image.width, height: image.height);
 
     switch (filterChoice) {
-      case 0: // Original
-        return filteredImage;
-
-      case 1: // Very Dark Enhancement
+      case 0: // Very Dark Enhancement
         return imge.adjustColor(
           filteredImage,
           gamma: 0.6,
@@ -108,7 +96,7 @@ class TextBasedDocumentImageProcessor {
           saturation: 0.7,
         );
 
-      case 2: // Dark Enhancement
+      case 1: // Dark Enhancement
         return imge.adjustColor(
           filteredImage,
           gamma: 0.7,
@@ -117,16 +105,10 @@ class TextBasedDocumentImageProcessor {
           saturation: 0.8,
         );
 
-      case 3: // Normal Enhancement
-        return imge.adjustColor(
-          filteredImage,
-          gamma: 0.8,
-          contrast: 1.4,
-          brightness: 1.1,
-          saturation: 0.9,
-        );
+      case 2: // Normal Enhancement
+        return applyColorFilter(filteredImage);
 
-      case 4: // Bright Enhancement
+      case 3: // Bright Enhancement
         return imge.adjustColor(
           filteredImage,
           gamma: 0.9,
@@ -135,7 +117,7 @@ class TextBasedDocumentImageProcessor {
           saturation: 1.0,
         );
 
-      case 5: // Very Bright Enhancement
+      case 4: // Very Bright Enhancement
         return imge.adjustColor(
           filteredImage,
           gamma: 1.0,
@@ -143,7 +125,6 @@ class TextBasedDocumentImageProcessor {
           brightness: 0.8,
           saturation: 1.0,
         );
-
       default:
         return filteredImage;
     }
@@ -162,69 +143,41 @@ class TextBasedDocumentImageProcessor {
 
       return File(filteredPath);
     } catch (e) {
-      print('Erro ao aplicar filtro manual: $e');
       return null;
     }
   }
 
-  imge.Image _applyAdaptiveDocumentEnhancement(imge.Image image, String lightCondition) {
-    imge.Image enhancedImage = imge.copyResize(image, width: image.width, height: image.height);
+  imge.Image applyColorFilter(imge.Image image) {
+    final width = image.width;
+    final height = image.height;
+    final th = 0.35;
+    final th2 = 0.29;
+    final th3 = 0.32;
+    imge.Image filteredImage = imge.copyResize(image, width: width, height: height);
 
-    switch (lightCondition) {
-      case 'very_dark':
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.9,
-          brightness: 1.5,
-        );
-        break;
-
-      case 'dark':
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.7,
-          brightness: 1.5,
-          saturation: -0.5,
-        );
-        break;
-
-      case 'normal':
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.4,
-          brightness: 1.1,
-          saturation: -0.5,
-        );
-        break;
-
-      case 'bright':
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.2,
-          brightness: 1.0,
-          saturation: -0.5,
-        );
-        break;
-
-      case 'very_bright':
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.1,
-          brightness: 0.8,
-          saturation: -0.5,
-        );
-        break;
-
-      default:
-        enhancedImage = imge.adjustColor(
-          enhancedImage,
-          contrast: 1.35,
-          brightness: 1.15,
-          saturation: -0.5,
-        );
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final pixel = filteredImage.getPixel(x, y);
+        final gray = (pixel.r + pixel.g + pixel.b).toInt()/3;
+        if(gray > 150){
+          final newR = (pixel.r + pixel.r * th).clamp(0, 255).toInt();
+          final newG = (pixel.g + pixel.g * th).clamp(0, 255).toInt();
+          final newB = (pixel.b + pixel.b * th).clamp(0, 255).toInt();
+          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
+        } else if(gray > 90 && gray < 150) {
+          final newR = (pixel.r + pixel.r * th2).clamp(0, 255).toInt();
+          final newG = (pixel.g + pixel.g * th2).clamp(0, 255).toInt();
+          final newB = (pixel.b + pixel.b * th2).clamp(0, 255).toInt();
+          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
+        } else {
+          final newR = (pixel.r - pixel.r * th3).clamp(0, 255).toInt();
+          final newG = (pixel.g - pixel.g * th3).clamp(0, 255).toInt();
+          final newB = (pixel.b - pixel.b * th3).clamp(0, 255).toInt();
+          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
+        }
+      }
     }
-
-    return enhancedImage;
+    return filteredImage;
   }
 
   Future<void> _processImage([String? imagePath]) async {
@@ -469,110 +422,6 @@ class TextBasedDocumentImageProcessor {
 
   void dispose() {
     _textRecognizer.close();
-    _lightDetector.dispose();
-  }
-}
-
-class ImageBasedLightDetector {
-  double _currentBrightness = 0.5;
-  String _currentCondition = 'normal';
-
-  Future<String> analyzeImageBrightness(imge.Image image) async {
-    try {
-      final brightness = _calculateImageBrightness(image);
-      _currentBrightness = brightness;
-
-      if (brightness < 0.05) {
-        _currentCondition = 'very_dark';
-      } else if (brightness < 0.1) {
-        _currentCondition = 'dark';
-      } else if (brightness < 0.4) {
-        _currentCondition = 'normal';
-      } else if (brightness < 0.7) {
-        _currentCondition = 'bright';
-      } else {
-        _currentCondition = 'very_bright';
-      }
-
-      return _currentCondition;
-    } catch (e) {
-      _currentCondition = 'normal';
-      _currentBrightness = 0.5;
-      return _currentCondition;
-    }
-  }
-
-  double _calculateImageBrightness(imge.Image image) {
-    int totalPixels = 0;
-    double sumBrightness = 0;
-
-    final sampleRate = math.max(1, (image.width * image.height) ~/ 1000);
-
-    for (int y = 0; y < image.height; y += sampleRate) {
-      for (int x = 0; x < image.width; x += sampleRate) {
-        if (x < image.width && y < image.height) {
-          final pixel = image.getPixel(x, y);
-          final r = pixel.r / 255.0;
-          final g = pixel.g / 255.0;
-          final b = pixel.b / 255.0;
-
-          final brightness = (r * 0.2126 + g * 0.7152 + b * 0.0722);
-          sumBrightness += brightness;
-          totalPixels++;
-        }
-      }
-    }
-
-    return totalPixels > 0 ? sumBrightness / totalPixels : 0.5;
-  }
-
-  Map<String, dynamic> getDetailedAnalysis(imge.Image image) {
-    final brightness = _currentBrightness;
-    final condition = _currentCondition;
-
-    double contrastLevel = _estimateContrast(image);
-
-    return {
-      'brightness': brightness,
-      'condition': condition,
-      'contrast': contrastLevel,
-      'recommended_enhancement': _getRecommendedEnhancement(brightness, contrastLevel),
-    };
-  }
-
-  double _estimateContrast(imge.Image image) {
-    final List<double> samples = [];
-    final sampleSize = 100;
-
-    for (int i = 0; i < sampleSize; i++) {
-      final x = math.Random().nextInt(image.width);
-      final y = math.Random().nextInt(image.height);
-      final pixel = image.getPixel(x, y);
-      final brightness = (pixel.r * 0.2126 +
-          pixel.g * 0.7152 +
-          pixel.b * 0.0722) / 255.0;
-      samples.add(brightness);
-    }
-
-    samples.sort();
-    final minBrightness = samples.first;
-    final maxBrightness = samples.last;
-
-    return maxBrightness - minBrightness;
-  }
-
-  String _getRecommendedEnhancement(double brightness, double contrast) {
-    if (brightness < 0.3 && contrast < 0.3) return 'high_enhancement';
-    if (brightness < 0.4 && contrast < 0.4) return 'medium_enhancement';
-    if (brightness > 0.8 && contrast < 0.2) return 'reduce_brightness';
-    return 'balanced_enhancement';
-  }
-
-  double getCurrentLux() => _currentBrightness * 1000;
-  String getLightCondition() => _currentCondition;
-  double getCurrentBrightness() => _currentBrightness;
-
-  void dispose() {
   }
 }
 
@@ -599,23 +448,25 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   bool _showScanAnimation = false;
   double _scanPosition = 0.0;
   late Timer _scanTimer;
-  int _selectedFilter = -1; // -1 = automático, 0-5 = filtros manuais
+  int _selectedFilter = 2;
   bool _showFilterOptions = false;
-  List<String> _filterOptions = [
-    'Automático',
-    'Muito Escuro',
-    'Escuro',
-    'Normal',
-    'Claro',
-    'Muito Claro',
-    'Original'
-  ];
+
+  List<String> _filterOptions = [];
+  List<String> _allScannedImages = [];
+  Map<String, dynamic>? _primaryAiAnalysis;
 
   @override
   void initState() {
     super.initState();
+    _filterOptions = [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "Original",
+    ];
     _initCamera();
-
 
     _showScanAnimation = true;
 
@@ -631,6 +482,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       }
     });
   }
+
   Future<void> _applyManualFilter(int filterIndex) async {
     if (_processor == null) return;
 
@@ -649,7 +501,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao aplicar filtro: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorApplyingFilter}$e')),
         );
       }
     } finally {
@@ -679,13 +531,13 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       child: Container(
         padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black.withAlpha(200),
+          color: Colors.black.withAlpha(100),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [
             Text(
-              'Selecionar Filtro',
+              AppLocalizations.of(context).selectFilter,
               style: TextStyle(
                 color: AppColors.white,
                 fontSize: 16,
@@ -697,7 +549,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
               spacing: 12,
               runSpacing: 12,
               alignment: WrapAlignment.center,
-              children: List.generate(7, (index) {
+              children: List.generate(_filterOptions.length, (index) {
                 return _buildFilterButton(index);
               }),
             ),
@@ -705,8 +557,8 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
             TextButton(
               onPressed: _toggleFilterOptions,
               child: Text(
-                'Fechar',
-                style: TextStyle(color: AppColors.green),
+                AppLocalizations.of(context).close,
+                style: TextStyle(color: AppColors.white),
               ),
             ),
           ],
@@ -717,17 +569,15 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
 
   Widget _buildFilterButton(int filterIndex) {
     final bool isSelected = _selectedFilter == filterIndex;
-    final String label = _filterOptions[filterIndex];
 
     Color buttonColor;
     switch (filterIndex) {
-      case 0: buttonColor = AppColors.green; break; // Automático
-      case 1: buttonColor = Colors.grey[900]!; break; // Muito Escuro
-      case 2: buttonColor = Colors.grey[700]!; break; // Escuro
-      case 3: buttonColor = Colors.grey[500]!; break; // Normal
-      case 4: buttonColor = Colors.grey[300]!; break; // Claro
-      case 5: buttonColor = Colors.grey[100]!; break; // Muito Claro
-      case 6: buttonColor = AppColors.white; break; // Original
+      case 0: buttonColor = Colors.black; break; // Muito Escuro
+      case 1: buttonColor = Colors.grey[700]!; break; // Escuro
+      case 2: buttonColor = Colors.grey[400]!; break; // Normal
+      case 3: buttonColor = Colors.grey[100]!; break; // Claro
+      case 4: buttonColor = Colors.white; break; // Muito Claro
+      case 5: buttonColor = AppColors.green; break; // Original
       default: buttonColor = AppColors.grey;
     }
 
@@ -742,12 +592,12 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
               color: buttonColor,
               shape: BoxShape.circle,
               border: Border.all(
-                color: isSelected ? AppColors.green : Colors.transparent,
+                color: isSelected? (filterIndex >= 3 ? Colors.grey : Colors.white) : Colors.transparent,
                 width: 3,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(200),
+                  color: Colors.black.withAlpha(190),
                   blurRadius: 4,
                   offset: Offset(0, 2),
                 ),
@@ -755,22 +605,13 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
             ),
             child: Center(
               child: Text(
-                filterIndex == 0 ? 'A' : (filterIndex == 6 ? 'O' : filterIndex.toString()),
+                filterIndex == 5 ? 'O' : filterIndex.toString(),
                 style: TextStyle(
-                  color: filterIndex >= 4 ? Colors.black : Colors.white,
+                  color: filterIndex >= 3 ? Colors.black : Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: filterIndex == 0 || filterIndex == 6 ? 14 : 16,
+                  fontSize: filterIndex == 5 ? 25 : 15,
                 ),
               ),
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: AppColors.white,
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ],
@@ -798,7 +639,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   }
 
   Widget _buildCurrentFilterIndicator() {
-    if (_processedImagePath == null || _selectedFilter == -1) {
+    if (_processedImagePath == null ) {
       return SizedBox.shrink();
     }
 
@@ -812,7 +653,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
-          'Filtro: ${_filterOptions[_selectedFilter]}',
+          '${AppLocalizations.of(context).filterLabel} ${_filterOptions[_selectedFilter]}',
           style: TextStyle(
             color: AppColors.white,
             fontSize: 12,
@@ -837,13 +678,14 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao inicializar câmera: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorInitializingCamera} $e')),
         );
       }
     }
   }
 
   Future<void> _takePicture() async {
+
     if (_controller == null || !_controller!.value.isInitialized) return;
 
     try {
@@ -856,7 +698,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao capturar imagem: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorCapturingImage} $e')),
         );
       }
     }
@@ -874,14 +716,11 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao selecionar imagem: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorSelectingImage} $e')),
         );
       }
     }
   }
-
-  List<String> _allScannedImages = [];
-  Map<String, dynamic>? _primaryAiAnalysis;
 
   Future<void> _confirm() async {
     if (_capturedImage == null || _isProcessing || _isAnalyzingAI) return;
@@ -906,26 +745,28 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Documento Escaneado'),
+        title: Text(AppLocalizations.of(context).scannedDocument),
         content: Text(
           _allScannedImages.length == 1
-              ? 'Deseja adicionar mais páginas a este documento?'
-              : 'Documento com ${_allScannedImages.length} páginas. Adicionar mais páginas?',
+              ? AppLocalizations.of(context).addMorePagesQuestion
+              : '${AppLocalizations.of(context).documentWithPagesAddMoreQuestion} ${_allScannedImages.length} ${AppLocalizations.of(context).documentWithPagesAddMoreQuestion2}',
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _retryCapture(); // Limpa para nova captura
+              _retryCapture();
             },
-            child: Text('Adicionar Mais Páginas'),
+            child: Text("${
+              AppLocalizations.of(context).documentWithPagesAddMoreQuestion
+            } ${_allScannedImages.length} ${AppLocalizations.of(context).documentWithPagesAddMoreQuestion2}"),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
               _goToTransactionForm();
             },
-            child: Text('Confirmar (${_allScannedImages.length} página${_allScannedImages.length > 1 ? 's' : ''})'),
+            child: Text('${AppLocalizations.of(context).confirmWithPageCount} (${_allScannedImages.length} ${AppLocalizations.of(context).confirmWithPageCount2})'),
           ),
         ],
       ),
@@ -945,7 +786,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     setState(() {
       _capturedImage = null;
       _processedImagePath = null;
-      _selectedFilter = -1;
+      _selectedFilter = 2;
       _showFilterOptions = false;
     });
   }
@@ -954,7 +795,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     setState(() {
       _isProcessing = true;
       _showScanAnimation = true;
-      _selectedFilter = -1;
+      _selectedFilter = 2;
       _scanPosition = 0.0;
     });
 
@@ -979,7 +820,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro no processamento: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorProcessing} $e')),
         );
       }
     } finally {
@@ -996,7 +837,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   Future<void> _analyzeWithAI() async {
     StringBuffer invoicesString = StringBuffer();
     List<Transaction> invoices = await dbService.getNoPaidInvoices(widget.sectionId);
-
 
     for (var invoice in invoices) {
       invoicesString.write("id: ${invoice.id} -> entidade: ${invoice.entity}, valor: ${invoice.amount}, refMesAno: ${invoice.monthRef}\n");
@@ -1015,7 +855,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Configure a chave API Gemini nas definições para usar a análise automática.'),
+              content: Text(AppLocalizations.of(context).configureGeminiApiKeyForAutoAnalysis),
               backgroundColor: AppColors.red,
               duration: Duration(seconds: 5),
             ),
@@ -1083,6 +923,7 @@ alguma fatura que tenha a mesma referência de mês e ano (monthRef/mes_ano_ref)
 apenas o id dessa fatura. Se as faturas apenas tiverem entidade e/ou valor condizente, adiciona o id dessa(s) fatura(s). 
 Aqui estão as faturas reais para analizar:
 ${invoicesString.toString()}
+(Atenção: o output deve ser no idioma: ${AppLocalizations.of(context).promptLanguage})
 
 ### Exemplos de saída válida:
 {"tipo_documento":1,"entidade":"Continente","data_emissao":"05 10 2025","valor_total":"23.45","descrição":"Compras para a casa","numero_serie":"UNKNOWN","metodo_pagamento":"UNKNOWN"}
@@ -1127,7 +968,7 @@ ${invoicesString.toString()}
         throw Exception('Falha na API: ${response.statusCode}');
       }
     } catch (e) {
-      print('Erro na análise IA: $e');
+      print('${AppLocalizations.of(context).errorAiAnalysis} $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1159,7 +1000,7 @@ ${invoicesString.toString()}
     return Scaffold(
       backgroundColor: AppColors.dark,
       appBar: AppBar(
-        title: Text('Escanear'),
+        title: Text(AppLocalizations.of(context).scan),
         backgroundColor: AppColors.white,
       ),
       body: Column(
@@ -1313,7 +1154,7 @@ ${invoicesString.toString()}
                                     CircularProgressIndicator(color: AppColors.white),
                                     SizedBox(height: 16),
                                     Text(
-                                      'Processando imagem...',
+                                      AppLocalizations.of(context).processingImage,
                                       style: TextStyle(color: AppColors.white, fontSize: 16),
                                     ),
                                   ],

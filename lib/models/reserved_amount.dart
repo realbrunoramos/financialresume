@@ -1,4 +1,3 @@
-// models/reserved_amount.dart
 class ReservedAmount {
   final String id;
   final String sectionId;

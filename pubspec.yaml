@@ -1,6 +1,6 @@
 name: financialresume
-description: A Flutter application for financial tracking.
-version: 1.0.0
+description: An inteligent application for financial tracking.
+version: 2.0.2
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -14,7 +14,7 @@ dependencies:
   permission_handler: ^11.0.0
   pdf: ^3.11.3
   open_file: ^3.3.2
-  intl: ^0.17.0
+  intl: ^0.19.0
   photo_view: ^0.15.0
   share_plus: ^10.0.0
   google_mlkit_text_recognition: ^0.15.0
@@ -28,13 +28,20 @@ dependencies:
   mailer: ^6.5.0
   google_fonts: ^6.2.1
   url_launcher: ^6.1.11
-
-
+  provider: ^6.1.1
+  flutter_local_notifications: ^19.5.0
+  timezone: ^0.10.1
+  package_info_plus: ^4.2.0
+  flutter_svg: ^2.0.9
+  flutter_localizations:
+    sdk: flutter
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.13.1
+
 
 flutter:
   fonts:
@@ -51,8 +58,24 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/images/app_logo.svg
 
 flutter_icons:
   android: true
   ios: true
   adaptive_icon_background: "#FFFFFF"
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/images/app_logo2.png
+  android_gravity: center
+  ios_content_mode: center
+
+  android_12:
+    color: "#ffffff"
+    image: assets/images/app_logo2.png
+    android_gravity: center
+
+
+
+

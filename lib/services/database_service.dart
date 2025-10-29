@@ -31,7 +31,6 @@ class DatabaseService {
         await _createTables(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
-        print("🔄 Upgrading database from version $oldVersion to $newVersion");
 
         if (oldVersion < 10) {
           await _recreateTransactionsTable(db);
@@ -50,8 +49,6 @@ class DatabaseService {
   }
 
   Future<void> _createTables(Database db) async {
-    print("🏗️ Creating database tables from scratch");
-
     await db.execute('''
       CREATE TABLE $sectionTable (
         id TEXT PRIMARY KEY,
@@ -117,12 +114,9 @@ class DatabaseService {
         value TEXT
       )
     ''');
-
-    print("✅ All tables created successfully");
   }
 
   Future<void> _upgradeToVersion12(Database db) async {
-    print("🔄 Upgrading to version 12 - Adding settings table");
     try {
       await db.execute('''
         CREATE TABLE IF NOT EXISTS $settingsTable (
@@ -130,9 +124,8 @@ class DatabaseService {
           value TEXT
         )
       ''');
-      print("✅ Created settings table");
     } catch (e) {
-      print("ℹ️ Settings table already exists: $e");
+      print("Settings table already exists: $e");
     }
   }
 
@@ -147,7 +140,6 @@ class DatabaseService {
       {'key': key, 'value': value},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    print("💾 Setting saved: $key = $value");
   }
 
   Future<String?> getSetting(String key) async {
@@ -159,7 +151,6 @@ class DatabaseService {
     );
     if (result.isEmpty) return null;
     final value = result.first['value'] as String?;
-    print("🔍 Setting retrieved: $key = $value");
     return value;
   }
 
@@ -170,17 +161,19 @@ class DatabaseService {
     for (final row in result) {
       settings[row['key'] as String] = row['value'] as String;
     }
-    print("📋 All settings: $settings");
     return settings;
   }
 
   Future<void> initializeDefaultSettings() async {
-    print("⚙️ Initializing default settings");
 
     final language = await getSetting('language');
     if (language == null) {
       await saveSetting('language', 'pt');
-      print("✅ Default language set to Portuguese");
+    }
+
+    final apiKey = await getSetting('api_key');
+    if (apiKey == null) {
+      await saveSetting('api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
     }
   }
 
@@ -348,6 +341,17 @@ class DatabaseService {
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
   }
 
+  Future<bool> existReserve(String reverseDescrip) async {
+    final db = await database;
+    final maps = await db.query(
+      reservedAmountsTable,
+      where: 'description = ?',
+      whereArgs: [reverseDescrip],
+      limit: 1,
+    );
+    return maps.isNotEmpty;
+  }
+
   Future<List<trns.Transaction>> getNoPaidInvoices(String sectionId) async {
     final db = await database;
 
@@ -391,7 +395,6 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion2(Database db) async {
-    print("🔄 Upgrading to version 2");
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $sectionTable (
         id TEXT PRIMARY KEY,
@@ -411,7 +414,6 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion3(Database db) async {
-    print("🔄 Upgrading to version 3");
     await db.execute('ALTER TABLE $transactionTable ADD COLUMN docType TEXT');
     await db.execute('ALTER TABLE $transactionTable ADD COLUMN monthRef TEXT');
     await db.execute('ALTER TABLE $transactionTable ADD COLUMN dueDate TEXT');
@@ -427,7 +429,6 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion5(Database db) async {
-    print("🔄 Upgrading to version 5");
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $emailsSentTable (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -441,13 +442,11 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion6(Database db) async {
-    print("🔄 Upgrading to version 6");
     await db.execute('ALTER TABLE $emailsSentTable ADD COLUMN emission_date TEXT');
     await db.execute('ALTER TABLE $transactionTable ADD COLUMN entity TEXT DEFAULT ""');
   }
 
   Future<void> _upgradeToVersion7(Database db) async {
-    print("🔄 Upgrading to version 7");
     await db.execute('''
       CREATE TABLE IF NOT EXISTS $reservedAmountsTable (
         id TEXT PRIMARY KEY,
@@ -461,19 +460,14 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion8(Database db) async {
-    print("🔄 Upgrading to version 8 - Adding numeroSerie and metodoPagamento");
     try {
       await db.execute('ALTER TABLE $transactionTable ADD COLUMN numeroSerie TEXT');
-      print("✅ Added numeroSerie column");
     } catch (e) {
-      print("ℹ️ numeroSerie column already exists: $e");
     }
 
     try {
       await db.execute('ALTER TABLE $transactionTable ADD COLUMN metodoPagamento TEXT');
-      print("✅ Added metodoPagamento column");
     } catch (e) {
-      print("ℹ️ metodoPagamento column already exists: $e");
     }
   }
 
