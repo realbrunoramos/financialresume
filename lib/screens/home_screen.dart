@@ -362,31 +362,83 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            child: FutureBuilder<List<Section>>(
-              future: dbService.getAllSections(),
-              builder: (context, snapshot) {
-                final sectionCount = snapshot.data?.length ?? 0;
-                return Column(
-                  children: [
-                    Text(
-                      AppLocalizations.of(context).yourSections,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.dark,
+            child: Expanded(
+              child: FutureBuilder<List<Section>>(
+                future: dbService.getAllSections(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: AppColors.dark),
+                          SizedBox(height: 16),
+                          Text(
+                            '${AppLocalizations.of(context).loading}...',
+                            style: TextStyle(color: AppColors.grey),
+                          ),
+                        ],
                       ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      '$sectionCount ${AppLocalizations.of(context).sectionsCreated}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.grey,
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: AppColors.red,
+                            size: 64,
+                          ),
+                          SizedBox(height: 16),
+                          Text(
+                            AppLocalizations.of(context).errorLoadingSections,
+                            style: TextStyle(
+                              color: AppColors.dark,
+                              fontSize: 18,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: () => setState(() {}),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.dark,
+                              foregroundColor: AppColors.white,
+                            ),
+                            child: Text(AppLocalizations.of(context).tryAgain),
+                          ),
+                        ],
                       ),
+                    );
+                  }
+
+                  final sections = snapshot.data ?? [];
+
+                  return Padding(
+                    padding: EdgeInsets.all(16),
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.2, // Ajustado para melhor proporção
+                      ),
+                      itemCount: sections.length + 1, // +1 para o botão de adicionar
+                      itemBuilder: (context, index) {
+                        // Último item é o botão de adicionar
+                        if (index == sections.length) {
+                          return _buildAddSectionCard();
+                        }
+
+                        final section = sections[index];
+                        return _buildSectionCard(section, index);
+                      },
                     ),
-                  ],
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
 
@@ -446,7 +498,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 final sections = snapshot.data ?? [];
 
-                if (sections.isEmpty) {
+              /*  if (sections.isEmpty) {
+                  return _buildAddSectionCard;
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -474,7 +527,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   );
-                }
+                }*/
 
                 return Padding(
                   padding: EdgeInsets.all(16),
@@ -571,8 +624,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    _addSection();
-                    Navigator.pop(context);
+                    if (_sectionNameController.text.isNotEmpty) {
+                      _addSection();
+                      Navigator.pop(context);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.dark,
@@ -605,6 +660,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.grey,
                   fontWeight: FontWeight.w500,
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -646,51 +702,51 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            section.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.white,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          SizedBox(height: 8),
-                          _buildSectionStats(section),
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.white.withAlpha(50),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                DateFormat('dd/MM/yy').format(section.createdAt),
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  color: AppColors.white.withAlpha(220),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Data de criação no topo direito
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.white.withAlpha(50),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        DateFormat('dd/MM/yy').format(section.createdAt),
+                        style: TextStyle(
+                          fontSize: 8,
+                          color: AppColors.white.withAlpha(220),
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              )
+                  ),
+
+                  // Nome da seção
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        section.name,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.white,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 8),
+
+                  // Estatísticas
+                  _buildSectionStats(section),
+                ],
+              ),
             ),
           ),
         ),

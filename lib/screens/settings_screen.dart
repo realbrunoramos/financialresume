@@ -117,6 +117,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _selectedLanguage = 'pt';
         await _dbService.saveSetting('language', 'pt');
       }
+
+      if (apiKey == null) {
+        await _dbService.saveSetting('gemini_api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
+      }
     } catch (e) {
     } finally {
       setState(() {
