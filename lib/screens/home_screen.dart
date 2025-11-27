@@ -4,12 +4,12 @@ import 'package:flutter_svg/svg.dart';
 import 'package:intl/intl.dart';
 import '../models/section.dart';
 import '../services/database_service.dart';
-import 'help_screen.dart';
 import 'about_screen.dart';
 import 'section_screen.dart';
 import 'package:uuid/uuid.dart';
 import '../theme/colors.dart';
 import '../l10n/app_localizations.dart';
+
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -316,18 +316,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 },
               ),
-              //Divider(color: AppColors.grey.shade300),
-              /*_buildDrawerItem(
-                icon: Icons.help_outline,
-                title: AppLocalizations.of(context).help,
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => HelpScreen()),
-                  );
-                },
-              ),*/
               _buildDrawerItem(
                 icon: Icons.info_outline,
                 title: AppLocalizations.of(context).about,
@@ -343,216 +331,166 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-           Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.black.withAlpha(20),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Expanded(
-              child: FutureBuilder<List<Section>>(
-                future: dbService.getAllSections(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircularProgressIndicator(color: AppColors.dark),
-                          SizedBox(height: 16),
-                          Text(
-                            '${AppLocalizations.of(context).loading}...',
-                            style: TextStyle(color: AppColors.grey),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
+      body: FutureBuilder<List<Section>>(
+        future: dbService.getAllSections(),
+        builder: (context, snapshot) {
+          final sectionCount = snapshot.data?.length ?? 0;
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: AppColors.red,
-                            size: 64,
-                          ),
-                          SizedBox(height: 16),
-                          Text(
-                            AppLocalizations.of(context).errorLoadingSections,
-                            style: TextStyle(
-                              color: AppColors.dark,
-                              fontSize: 18,
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: () => setState(() {}),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.dark,
-                              foregroundColor: AppColors.white,
-                            ),
-                            child: Text(AppLocalizations.of(context).tryAgain),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final sections = snapshot.data ?? [];
-
-                  return Padding(
-                    padding: EdgeInsets.all(16),
-                    child: GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: 1.2, // Ajustado para melhor proporção
-                      ),
-                      itemCount: sections.length + 1, // +1 para o botão de adicionar
-                      itemBuilder: (context, index) {
-                        // Último item é o botão de adicionar
-                        if (index == sections.length) {
-                          return _buildAddSectionCard();
-                        }
-
-                        final section = sections[index];
-                        return _buildSectionCard(section, index);
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          SizedBox(height: 24),
-
-          Expanded(
-            child: FutureBuilder<List<Section>>(
-              future: dbService.getAllSections(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(color: AppColors.dark),
-                        SizedBox(height: 16),
-                        Text(
-                          '${AppLocalizations.of(context).loading}...',
-                          style: TextStyle(color: AppColors.grey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: AppColors.red,
-                          size: 64,
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          AppLocalizations.of(context).errorLoadingSections,
-                          style: TextStyle(
-                            color: AppColors.dark,
-                            fontSize: 18,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: () => setState(() {}),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.dark,
-                            foregroundColor: AppColors.white,
-                          ),
-                          child: Text(AppLocalizations.of(context).tryAgain),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                final sections = snapshot.data ?? [];
-
-              /*  if (sections.isEmpty) {
-                  return _buildAddSectionCard;
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.folder_open,
-                          color: AppColors.grey,
-                          size: 80,
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          AppLocalizations.of(context).noSectionsCreated,
-                          style: TextStyle(
-                            color: AppColors.dark,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          AppLocalizations.of(context).tapPlusToCreateFirstSection,
-                          style: TextStyle(color: AppColors.grey),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                }*/
-
-                return Padding(
-                  padding: EdgeInsets.all(16),
-                  child: GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                      childAspectRatio: 1.3,
-                    ),
-                    itemCount: sections.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == sections.length) {
-                        return _buildAddSectionCard();
-                      }
-
-                      final section = sections[index];
-                      return _buildSectionCard(section, index);
-                    },
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
                   ),
-                );
-              },
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.black.withAlpha(20),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      AppLocalizations.of(context).yourSections,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '$sectionCount ${AppLocalizations.of(context).sectionsCreated}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: AppColors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 24),
+
+              Expanded(
+                child: _buildSectionsContent(snapshot),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSectionsContent(AsyncSnapshot<List<Section>> snapshot) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: AppColors.dark),
+            SizedBox(height: 16),
+            Text(
+              '${AppLocalizations.of(context).loading}...',
+              style: TextStyle(color: AppColors.grey),
             ),
+          ],
+        ),
+      );
+    }
+
+    if (snapshot.hasError) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              color: AppColors.red,
+              size: 64,
+            ),
+            SizedBox(height: 16),
+            Text(
+              AppLocalizations.of(context).errorLoadingSections,
+              style: TextStyle(
+                color: AppColors.dark,
+                fontSize: 18,
+              ),
+            ),
+            SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () => setState(() {}),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.dark,
+                foregroundColor: AppColors.white,
+              ),
+              child: Text(AppLocalizations.of(context).tryAgain),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final sections = snapshot.data ?? [];
+
+    if (sections.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.folder_open,
+                color: AppColors.grey,
+                size: 80,
+              ),
+              SizedBox(height: 16),
+              Text(
+                AppLocalizations.of(context).noSectionsCreated,
+                style: TextStyle(
+                  color: AppColors.dark,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                AppLocalizations.of(context).tapPlusToCreateFirstSection,
+                style: TextStyle(color: AppColors.grey),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              _buildAddSectionCard(),
+            ],
           ),
-        ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.all(16),
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.2,
+        ),
+        itemCount: sections.length + 1,
+        itemBuilder: (context, index) {
+          if (index == sections.length) {
+            return _buildAddSectionCard();
+          }
+
+          final section = sections[index];
+          return _buildSectionCard(section, index);
+        },
       ),
     );
   }
@@ -642,6 +580,8 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         borderRadius: BorderRadius.circular(16),
         child: Container(
+          width: 150,
+          height: 120,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -705,7 +645,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Data de criação no topo direito
                   Align(
                     alignment: Alignment.topRight,
                     child: Container(
@@ -740,10 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-
                   SizedBox(height: 8),
-
-                  // Estatísticas
                   _buildSectionStats(section),
                 ],
               ),

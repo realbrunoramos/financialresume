@@ -32,6 +32,671 @@ class _SectionScreenState extends State<SectionScreen> {
   List<Transaction> _allTransactions = [];
   final FocusNode _searchFocusNode = FocusNode();
   bool _isSearchActive = false;
+  double? availableBalance;
+
+
+  void _handleSearchFocusChange() {
+
+    setState(() {
+      _isSearchActive = _searchFocusNode.hasFocus;
+    });
+  }
+
+  void _filterTransactions() {
+    final query = _searchController.text.toLowerCase().trim();
+
+    if (query.isEmpty) {
+      setState(() {
+        _filteredTransactions = _allTransactions;
+      });
+      return;
+    }
+
+    setState(() {
+      _filteredTransactions = _allTransactions.where((transaction) {
+        return transaction.entity.toLowerCase().contains(query) ||
+            transaction.description.toLowerCase().contains(query) ||
+            transaction.amount.toString().contains(query) ||
+            (transaction.monthRef?.toLowerCase().contains(query) ?? false) ||
+            (transaction.numeroSerie?.toLowerCase().contains(query) ?? false) ||
+            (transaction.metodoPagamento?.toLowerCase().contains(query) ?? false) ||
+            DateFormat('dd/MM/yyyy').format(transaction.date).contains(query);
+      }).toList();
+    });
+  }
+
+  Future<Map<String, dynamic>> _loadFinancialData() async {
+    final transactions = await dbService.getAllTransactions(widget.section.id);
+    final balance = transactions.fold<double>(0,(sum, t) => sum + (t.isCredit ? t.amount : -t.amount));
+    final reservedAmounts = await dbService.getReservedAmounts(widget.section.id);
+    final totalReserved = reservedAmounts.fold<double>(
+      0.0, (sum, r) => sum + (r.amount is int ? (r.amount as int).toDouble() : r.amount),
+    );
+
+    final now = DateTime.now();
+    final lastDayOfMonth = DateTime(now.year, now.month+1, 0);
+    final remainingDays = lastDayOfMonth.difference(now).inDays + 1;
+
+    final availableAmount = (balance - totalReserved) < 0 ? 0 : balance - totalReserved;
+    final dailyLimit = availableAmount > 0 && remainingDays > 0
+        ? availableAmount / remainingDays
+        : 0;
+
+    if (mounted) {
+      setState(() {
+        _allTransactions = transactions;
+        _filterTransactions();
+      });
+    }
+
+    return {
+      'balance': balance,
+      'totalReserved': totalReserved,
+      'dailyLimit': dailyLimit,
+      'remainingDays': remainingDays,
+      'transactions': transactions,
+      'reservedAmounts': reservedAmounts,
+    };
+  }
+
+  Future<void> _refreshData() async {
+    final data = await _loadFinancialData();
+    setState(() {
+      _financialData = Future.value(data);
+      availableBalance = data['availableAmount'];
+    });
+    print('availableBalance: $availableBalance');
+  }
+  Future<double> getAvailableBalance() async {
+    final data = await _loadFinancialData();
+    return data['availableAmount'];
+  }
+
+  List<Transaction> _sortInvoicesByDueDate(List<Transaction> invoices) {
+    final now = DateTime.now();
+
+    return invoices..sort((a, b) {
+      if (a.dueDate != null && b.dueDate != null) {
+        final daysA = a.dueDate!.difference(now).inDays;
+        final daysB = b.dueDate!.difference(now).inDays;
+
+        if (daysA < 0 && daysB < 0) {
+          return daysA.compareTo(daysB);
+        }
+        if (daysA < 0) return -1;
+        if (daysB < 0) return 1;
+        return daysA.compareTo(daysB);
+      }
+
+      if (a.dueDate != null) return -1;
+      if (b.dueDate != null) return 1;
+
+      return b.date.compareTo(a.date);
+    });
+  }
+
+  void _showInvoiceDetails(Transaction invoice) {
+    final List<Map<String, dynamic>> details = [];
+
+    if (invoice.numeroSerie != null && invoice.numeroSerie!.isNotEmpty && invoice.numeroSerie != 'UNKNOWN') {
+      details.add({'label': AppLocalizations.of(context).invoiceNumber, 'value': invoice.numeroSerie!});
+    }
+
+    details.add({
+      'label': AppLocalizations.of(context).value,
+      'value': '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(invoice.amount)}'
+    });
+
+    details.add({
+      'label': AppLocalizations.of(context).emissionDate,
+      'value': DateFormat('dd/MM/yyyy').format(invoice.date)
+    });
+
+    if (invoice.dueDate != null) {
+      details.add({
+        'label': AppLocalizations.of(context).limitDate,
+        'value': '${DateFormat('dd/MM/yyyy').format(invoice.dueDate!)} (${_getDueDateStatus(invoice.dueDate!)})'
+      });
+    }
+
+    if (invoice.monthRef != null && invoice.monthRef!.isNotEmpty) {
+      details.add({'label': AppLocalizations.of(context).reference.replaceFirst(':', ''), 'value': invoice.monthRef!});
+    }
+
+    if (invoice.metodoPagamento != null && invoice.metodoPagamento!.isNotEmpty && invoice.metodoPagamento != 'UNKNOWN') {
+      details.add({
+        'label': AppLocalizations.of(context).payment,
+        'value': invoice.metodoPagamento!.split("/").length == 2
+            ? "${AppLocalizations.of(context).entity}: ${invoice.metodoPagamento!.split("/")[0]}\n${AppLocalizations.of(context).reference} ${invoice.metodoPagamento!.split("/")[1]}"
+            : "IBAN: ${invoice.metodoPagamento!}"
+      });
+    }
+
+    if (invoice.description.isNotEmpty) {
+      details.add({'label': AppLocalizations.of(context).description, 'value': invoice.description});
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.white,
+        title: Text(
+          invoice.entity.isNotEmpty ? invoice.entity : AppLocalizations.of(context).invoice,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < details.length; i++)
+                _buildDetailRow(
+                    details[i]['label'],
+                    details[i]['value'],
+                    i.isEven ? Colors.grey[300]! : Colors.grey[50]!
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(AppLocalizations.of(context).close, style: TextStyle(color: AppColors.dark)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, Color color) {
+    return Container(
+      width: double.infinity,
+      color: color,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.dark,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: AppColors.grey.shade700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getDueDateStatus(DateTime dueDate) {
+    final now = DateTime.now();
+    final normalizedDueDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
+    final normalizedNow = DateTime(now.year, now.month, now.day);
+
+    final difference = normalizedDueDate.difference(normalizedNow).inDays;
+
+    if (difference < 0) {
+      return '${AppLocalizations.of(context).overdueByDays} ${difference.abs()} ${AppLocalizations.of(context).overdueByDays2}';
+    } else if (difference == 0) {
+      return AppLocalizations.of(context).dueToday;
+    } else if (difference == 1) {
+      return AppLocalizations.of(context).dueTomorrow;
+    } else {
+      return '${AppLocalizations.of(context).dueInDays} $difference ${AppLocalizations.of(context).dueInDays2}';
+    }
+  }
+
+  Future<void> _showInvoiceOptions(Transaction invoice) async {
+    try {
+      return showDialog<void>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            backgroundColor: AppColors.white,
+            title: Text(
+              AppLocalizations.of(context).invoiceActions,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: Text(AppLocalizations.of(context).whatToDoWithThisInvoice),
+            actions: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    child: Text(AppLocalizations.of(context).edit),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TransactionFormScreen(
+                            transaction: invoice,
+                            sectionId: widget.section.id,
+                          ),
+                        ),
+                      ).then((_) => _refreshData());
+                    },
+                  ),
+                  TextButton(
+                    child: Text(AppLocalizations.of(context).delete),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _confirmDeleteInvoice(invoice);
+                    },
+                  ),
+                  TextButton(
+                    child: Text(AppLocalizations.of(context).reserve),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _reserveInvoiceAmount(invoice);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+    }
+  }
+
+  Future<void> _confirmDeleteInvoice(Transaction invoice) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context).confirmDeletion),
+        content: Text(AppLocalizations.of(context).confirmDeleteInvoice),
+        actions: [
+          TextButton(
+            child: Text(AppLocalizations.of(context).cancel),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteTransaction(invoice.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).invoiceDeletedSuccessfully),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _reserveInvoiceAmount(Transaction invoice) async {
+    final description = "${invoice.entity} | ${invoice.monthRef}";
+    final existAlready = await dbService.existReserve(description);
+    if (existAlready) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).reservationAlreadyExistsForInvoice, style: TextStyle(color: AppColors.black)),
+          backgroundColor: AppColors.white,
+        ),
+      );
+      return;
+    } else{
+      final reservedAmount = ReservedAmount(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        sectionId: widget.section.id,
+        description: description,
+        amount: invoice.amount,
+        createdAt: DateTime.now(),
+      );
+      await dbService.insertReservedAmount(reservedAmount);
+      setState(() {
+        _refreshData();
+      });
+    }
+  }
+
+  Future<void> _showTransactionActions(Transaction transaction) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.white,
+          title: Text(AppLocalizations.of(context).transactionActions),
+          content: Text(AppLocalizations.of(context).whatToDo),
+          actions: <Widget>[
+            TextButton(
+              child: Text(AppLocalizations.of(context).edit),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => TransactionFormScreen(
+                      transaction: transaction,
+                      sectionId: widget.section.id,
+                    ),
+                  ),
+                ).then((_) => _refreshData());
+              },
+            ),
+            TextButton(
+              child: Text(AppLocalizations.of(context).delete),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _confirmDeleteTransaction(transaction);
+              },
+            ),
+            TextButton(
+              child: Text(AppLocalizations.of(context).cancel),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteTransaction(Transaction transaction) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context).confirmDeletion),
+        content: Text(AppLocalizations.of(context).confirmDeleteTransaction),
+        actions: [
+          TextButton(
+            child: Text(AppLocalizations.of(context).cancel),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteTransaction(transaction.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).transactionDeletedSuccessfully),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showReservedAmountActions(ReservedAmount reservedAmount) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.white,
+          title: Text(AppLocalizations.of(context).reservationActions),
+          content: Text(AppLocalizations.of(context).whatToDo),
+          actions: <Widget>[
+            TextButton(
+              child: Text(AppLocalizations.of(context).edit),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ReservedAmountFormScreen(
+                      reservedAmount: reservedAmount,
+                      sectionId: widget.section.id,
+                    ),
+                  ),
+                ).then((_) => _refreshData());
+              },
+            ),
+            TextButton(
+              child: Text(AppLocalizations.of(context).delete),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _confirmDeleteReservedAmount(reservedAmount);
+              },
+            ),
+            TextButton(
+              child: Text(AppLocalizations.of(context).cancel),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmDeleteReservedAmount(ReservedAmount reservedAmount) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppLocalizations.of(context).confirmDeletion),
+        content: Text(AppLocalizations.of(context).confirmDeleteReservation),
+        actions: [
+          TextButton(
+            child: Text(AppLocalizations.of(context).cancel),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+          TextButton(
+            child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: AppColors.red)),
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await dbService.deleteReservedAmount(reservedAmount.id);
+      _refreshData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).reservationDeletedSuccessfully),
+            backgroundColor: AppColors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildEnhancedReservedAmountCard(ReservedAmount reservedAmount) {
+    return Container(
+      width: 160,
+      margin: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppColors.grey.shade300,
+            width: 1,
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.blue.withAlpha(25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.savings,
+                        size: 16,
+                        color: AppColors.blue,
+                      ),
+                    ),
+                    Text(
+                      '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(reservedAmount.amount)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.dark,
+                      ),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 8),
+
+                Text(
+                  reservedAmount.description,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.dark,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+
+                SizedBox(height: 5),
+
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 10,
+                      color: AppColors.grey.shade600,
+                    ),
+                    SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        DateFormat('dd/MM/yy').format(reservedAmount.createdAt),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.grey.shade600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+
+                Container(
+                  margin: EdgeInsets.only(top: 4),
+                  height: 2,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.blue, AppColors.green],
+                    ),
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getInvoiceColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey.shade100;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return Color(0xFFFFE6E6);
+    } else if (daysUntilDue <= 7) {
+      return Color(0xFFFFF4E6);
+    } else {
+      return AppColors.grey.shade100;
+    }
+  }
+
+  Color _getInvoiceBorderColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey.shade300;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red;
+    } else if (daysUntilDue <= 7) {
+      return Colors.orange;
+    } else {
+      return AppColors.green;
+    }
+  }
+
+  IconData _getInvoiceIcon(Transaction invoice) {
+    if (invoice.dueDate == null) return Icons.receipt;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return Icons.warning;
+    } else if (daysUntilDue <= 7) {
+      return Icons.schedule;
+    } else {
+      return Icons.receipt;
+    }
+  }
+
+  Color _getInvoiceIconColor(Transaction invoice) {
+    if (invoice.dueDate == null) return AppColors.grey;
+
+    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red;
+    } else if (daysUntilDue <= 7) {
+      return Colors.orange;
+    } else {
+      return AppColors.green;
+    }
+  }
+
+  Color _getDueDateTextColor(DateTime? dueDate) {
+    if (dueDate == null) return AppColors.grey;
+
+    final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
+
+    if (daysUntilDue < 0) {
+      return AppColors.red;
+    } else if (daysUntilDue <= 7) {
+      return Colors.orange;
+    } else {
+      return AppColors.green;
+    }
+  }
 
   @override
   void initState() {
@@ -43,14 +708,12 @@ class _SectionScreenState extends State<SectionScreen> {
     _searchController.addListener(_filterTransactions);
     _searchFocusNode.addListener(_handleSearchFocusChange);
   }
-
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -76,7 +739,6 @@ class _SectionScreenState extends State<SectionScreen> {
             if (transactionProvider.isLoading) {
               return Center(child: CircularProgressIndicator());
             }
-            //final transactions = transactionProvider.transactions;
 
             return GestureDetector(
               onTap: () => FocusScope.of(context).unfocus(),
@@ -107,7 +769,7 @@ class _SectionScreenState extends State<SectionScreen> {
                               final dailyLimit = (data['dailyLimit'] as num).toDouble();
                               final remainingDays = data['remainingDays'] as int;
 
-                              final availableAmount = balance - totalReserved;
+                              final availableAmount = (balance - totalReserved) < 0 ? 0 : balance - totalReserved;
 
                               return Column(
                                 children: [
@@ -141,7 +803,7 @@ class _SectionScreenState extends State<SectionScreen> {
                                         '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(availableAmount)}',
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: availableAmount >= 0 ? AppColors.green : AppColors.red,
+                                          color: availableAmount == 0 ? Colors.grey : availableAmount > 0 ? AppColors.green : AppColors.red,
                                         ),
                                       ),
                                     ],
@@ -155,10 +817,23 @@ class _SectionScreenState extends State<SectionScreen> {
                                         AppLocalizations.of(context).totalReserved,
                                         style: TextStyle(fontSize: 14, color: AppColors.grey),
                                       ),
-                                      Text(
-                                        '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(totalReserved)}',
-                                        style: TextStyle(fontSize: 14, color: AppColors.grey),
-                                      ),
+                                      Row(
+                                        children: [
+                                          if (totalReserved > balance && totalReserved > 0) ...[
+                                            Text(
+                                              '(+${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(totalReserved - balance)}) ',
+                                              style: TextStyle(fontSize: 12, color: AppColors.red),
+                                            ),
+                                            Text(
+                                              '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(balance)}',
+                                              style: TextStyle(fontSize: 14, color: AppColors.grey),
+                                            ),
+                                          ] else Text(
+                                            '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(totalReserved)}',
+                                            style: TextStyle(fontSize: 14, color: totalReserved < 0  || totalReserved > balance ? AppColors.red : AppColors.green),
+                                          ),
+                                        ],
+                                      )
                                     ],
                                   ),
                                   SizedBox(height: 8),
@@ -406,11 +1081,11 @@ class _SectionScreenState extends State<SectionScreen> {
                                         color: AppColors.green,
                                         size: 20,
                                       ),
-                                      onPressed: () {
+                                      onPressed: () {;
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => ReservedAmountFormScreen(sectionId: widget.section.id),
+                                            builder: (context) => ReservedAmountFormScreen(availableBalance: availableBalance, sectionId: widget.section.id),
                                           ),
                                         ).then((_) => _refreshData());
                                       },
@@ -544,668 +1219,5 @@ class _SectionScreenState extends State<SectionScreen> {
         child: Icon(Icons.add, color: AppColors.white),
       ),
     );
-  }
-
-  void _handleSearchFocusChange() {
-
-    setState(() {
-      _isSearchActive = _searchFocusNode.hasFocus;
-    });
-  }
-
-  void _filterTransactions() {
-    final query = _searchController.text.toLowerCase().trim();
-
-    if (query.isEmpty) {
-      setState(() {
-        _filteredTransactions = _allTransactions;
-      });
-      return;
-    }
-
-    setState(() {
-      _filteredTransactions = _allTransactions.where((transaction) {
-        return transaction.entity.toLowerCase().contains(query) ||
-            transaction.description.toLowerCase().contains(query) ||
-            transaction.amount.toString().contains(query) ||
-            (transaction.monthRef?.toLowerCase().contains(query) ?? false) ||
-            (transaction.numeroSerie?.toLowerCase().contains(query) ?? false) ||
-            (transaction.metodoPagamento?.toLowerCase().contains(query) ?? false) ||
-            DateFormat('dd/MM/yyyy').format(transaction.date).contains(query);
-      }).toList();
-    });
-  }
-
-  Future<Map<String, dynamic>> _loadFinancialData() async {
-    final transactions = await dbService.getAllTransactions(widget.section.id);
-    final balance = transactions.fold<double>(0,(sum, t) => sum + (t.isCredit ? t.amount : -t.amount));
-    final reservedAmounts = await dbService.getReservedAmounts(widget.section.id);
-    final totalReserved = reservedAmounts.fold<double>(
-      0.0, (sum, r) => sum + (r.amount is int ? (r.amount as int).toDouble() : r.amount),
-    );
-
-    final now = DateTime.now();
-    final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
-    final remainingDays = lastDayOfMonth.difference(now).inDays + 1;
-
-    final availableAmount = balance - totalReserved;
-    final dailyLimit = availableAmount > 0 && remainingDays > 0
-        ? availableAmount / remainingDays
-        : 0;
-
-    if (mounted) {
-      setState(() {
-        _allTransactions = transactions;
-        _filterTransactions();
-      });
-    }
-
-    return {
-      'balance': balance,
-      'totalReserved': totalReserved,
-      'dailyLimit': dailyLimit,
-      'remainingDays': remainingDays,
-      'transactions': transactions,
-      'reservedAmounts': reservedAmounts,
-    };
-  }
-
-  void _refreshData() {
-    setState(() {
-      _financialData = _loadFinancialData();
-    });
-  }
-
-  List<Transaction> _sortInvoicesByDueDate(List<Transaction> invoices) {
-    final now = DateTime.now();
-
-    return invoices..sort((a, b) {
-      if (a.dueDate != null && b.dueDate != null) {
-        final daysA = a.dueDate!.difference(now).inDays;
-        final daysB = b.dueDate!.difference(now).inDays;
-
-        if (daysA < 0 && daysB < 0) {
-          return daysA.compareTo(daysB);
-        }
-        if (daysA < 0) return -1;
-        if (daysB < 0) return 1;
-        return daysA.compareTo(daysB);
-      }
-
-      if (a.dueDate != null) return -1;
-      if (b.dueDate != null) return 1;
-
-      return b.date.compareTo(a.date);
-    });
-  }
-
-  void _showInvoiceDetails(Transaction invoice) {
-    final List<Map<String, dynamic>> details = [];
-
-    if (invoice.numeroSerie != null && invoice.numeroSerie!.isNotEmpty && invoice.numeroSerie != 'UNKNOWN') {
-      details.add({'label': AppLocalizations.of(context).invoiceNumber, 'value': invoice.numeroSerie!});
-    }
-
-    details.add({
-      'label': AppLocalizations.of(context).value,
-      'value': '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(invoice.amount)}'
-    });
-
-    details.add({
-      'label': AppLocalizations.of(context).emissionDate,
-      'value': DateFormat('dd/MM/yyyy').format(invoice.date)
-    });
-
-    if (invoice.dueDate != null) {
-      details.add({
-        'label': AppLocalizations.of(context).limitDate,
-        'value': '${DateFormat('dd/MM/yyyy').format(invoice.dueDate!)} (${_getDueDateStatus(invoice.dueDate!)})'
-      });
-    }
-
-    if (invoice.monthRef != null && invoice.monthRef!.isNotEmpty) {
-      details.add({'label': AppLocalizations.of(context).reference.replaceFirst(':', ''), 'value': invoice.monthRef!});
-    }
-
-    if (invoice.metodoPagamento != null && invoice.metodoPagamento!.isNotEmpty && invoice.metodoPagamento != 'UNKNOWN') {
-      details.add({
-        'label': AppLocalizations.of(context).payment,
-        'value': invoice.metodoPagamento!.split("/").length == 2
-            ? "${AppLocalizations.of(context).entity}: ${invoice.metodoPagamento!.split("/")[0]}\n${AppLocalizations.of(context).reference} ${invoice.metodoPagamento!.split("/")[1]}"
-            : "IBAN: ${invoice.metodoPagamento!}"
-      });
-    }
-
-    if (invoice.description.isNotEmpty) {
-      details.add({'label': AppLocalizations.of(context).description, 'value': invoice.description});
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.white,
-        title: Text(
-          invoice.entity.isNotEmpty ? invoice.entity : AppLocalizations.of(context).invoice,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (int i = 0; i < details.length; i++)
-                _buildDetailRow(
-                    details[i]['label'],
-                    details[i]['value'],
-                    i.isEven ? Colors.grey[300]! : Colors.grey[50]!
-                ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).close, style: TextStyle(color: AppColors.dark)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, Color color) {
-    return Container(
-      width: double.infinity,
-      color: color,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: AppColors.dark,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: AppColors.grey.shade700,
-                fontSize: 14,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getDueDateStatus(DateTime dueDate) {
-    final now = DateTime.now();
-    final normalizedDueDate = DateTime(dueDate.year, dueDate.month, dueDate.day);
-    final normalizedNow = DateTime(now.year, now.month, now.day);
-
-    final difference = normalizedDueDate.difference(normalizedNow).inDays;
-
-    if (difference < 0) {
-      return '${AppLocalizations.of(context).overdueByDays} ${difference.abs()} ${AppLocalizations.of(context).overdueByDays2}';
-    } else if (difference == 0) {
-      return AppLocalizations.of(context).dueToday;
-    } else if (difference == 1) {
-      return AppLocalizations.of(context).dueTomorrow;
-    } else {
-      return '${AppLocalizations.of(context).dueInDays} $difference ${AppLocalizations.of(context).dueInDays2}';
-    }
-  }
-
-  Future<void> _showInvoiceOptions(Transaction invoice) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          title: Text(
-            AppLocalizations.of(context).invoiceActions,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: Text(AppLocalizations.of(context).whatToDoWithThisInvoice),
-          actions: [
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    child: Text(AppLocalizations.of(context).edit),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TransactionFormScreen(
-                            transaction: invoice,
-                            sectionId: widget.section.id,
-                          ),
-                        ),
-                      ).then((_) => _refreshData());
-                    },
-                  ),
-
-                  SizedBox(width: 2),
-
-                  TextButton(
-                    child: Text(AppLocalizations.of(context).delete),
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await _confirmDeleteInvoice(invoice);
-                    },
-                  ),
-                  SizedBox(width: 2),
-
-                  TextButton(
-                    child: Text(AppLocalizations.of(context).reserve),
-                    onPressed: () async {
-                      Navigator.of(context).pop();
-                      await _reserveInvoiceAmount(invoice);
-                    },
-                  ),
-
-                ],
-              ),
-            ),
-          ],
-
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteInvoice(Transaction invoice) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context).confirmDeletion),
-        content: Text(AppLocalizations.of(context).confirmDeleteInvoice),
-        actions: [
-          TextButton(
-            child: Text(AppLocalizations.of(context).cancel),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          TextButton(
-            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await dbService.deleteTransaction(invoice.id);
-      _refreshData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).invoiceDeletedSuccessfully),
-            backgroundColor: AppColors.green,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _reserveInvoiceAmount(Transaction invoice) async {
-    final description = "${invoice.entity} | ${invoice.monthRef}";
-    final existAlready = await dbService.existReserve(description);
-    if (existAlready) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).reservationAlreadyExistsForInvoice, style: TextStyle(color: AppColors.black)),
-          backgroundColor: AppColors.white,
-        ),
-      );
-      return;
-    } else{
-      final reservedAmount = ReservedAmount(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sectionId: widget.section.id,
-        description: description,
-        amount: invoice.amount,
-        createdAt: DateTime.now(),
-      );
-      await dbService.insertReservedAmount(reservedAmount);
-      setState(() {
-        _refreshData();
-      });
-    }
-  }
-
-  Future<void> _showTransactionActions(Transaction transaction) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          title: Text(AppLocalizations.of(context).transactionActions),
-          content: Text(AppLocalizations.of(context).whatToDo),
-          actions: <Widget>[
-            TextButton(
-              child: Text(AppLocalizations.of(context).edit),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TransactionFormScreen(
-                      transaction: transaction,
-                      sectionId: widget.section.id,
-                    ),
-                  ),
-                ).then((_) => _refreshData());
-              },
-            ),
-            TextButton(
-              child: Text(AppLocalizations.of(context).delete),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _confirmDeleteTransaction(transaction);
-              },
-            ),
-            TextButton(
-              child: Text('Cancelar'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteTransaction(Transaction transaction) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirmar Exclusão'),
-        content: Text(AppLocalizations.of(context).confirmDeleteTransaction),
-        actions: [
-          TextButton(
-            child: Text('Cancelar'),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          TextButton(
-            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await dbService.deleteTransaction(transaction.id);
-      _refreshData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).transactionDeletedSuccessfully),
-            backgroundColor: AppColors.green,
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _showReservedAmountActions(ReservedAmount reservedAmount) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          title: Text(AppLocalizations.of(context).reservationActions),
-          content: Text(AppLocalizations.of(context).whatToDo),
-          actions: <Widget>[
-            TextButton(
-              child: Text(AppLocalizations.of(context).edit),
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ReservedAmountFormScreen(
-                      reservedAmount: reservedAmount,
-                      sectionId: widget.section.id,
-                    ),
-                  ),
-                ).then((_) => _refreshData());
-              },
-            ),
-            TextButton(
-              child: Text(AppLocalizations.of(context).delete),
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _confirmDeleteReservedAmount(reservedAmount);
-              },
-            ),
-            TextButton(
-              child: Text(AppLocalizations.of(context).cancel),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _confirmDeleteReservedAmount(ReservedAmount reservedAmount) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Confirmar Exclusão'),
-        content: Text(AppLocalizations.of(context).confirmDeleteReservation),
-        actions: [
-          TextButton(
-            child: Text('Cancelar'),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-          TextButton(
-            child: Text('Excluir', style: TextStyle(color: AppColors.red)),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await dbService.deleteReservedAmount(reservedAmount.id);
-      _refreshData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).reservationDeletedSuccessfully),
-            backgroundColor: AppColors.green,
-          ),
-        );
-      }
-    }
-  }
-
-
-  Widget _buildEnhancedReservedAmountCard(ReservedAmount reservedAmount) {
-    return Container(
-      width: 160,
-      margin: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-      child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: AppColors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.blue.withAlpha(25),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.savings,
-                        size: 16,
-                        color: AppColors.blue,
-                      ),
-                    ),
-                    Text(
-                      '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(reservedAmount.amount)}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.dark,
-                      ),
-                    ),
-                  ],
-                ),
-
-                SizedBox(height: 8),
-
-                Text(
-                  reservedAmount.description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.dark,
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                SizedBox(height: 5),
-
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: 10,
-                      color: AppColors.grey.shade600,
-                    ),
-                    SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        DateFormat('dd/MM/yy').format(reservedAmount.createdAt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.grey.shade600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-
-                Container(
-                  margin: EdgeInsets.only(top: 4),
-                  height: 2,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.blue, AppColors.green],
-                    ),
-                    borderRadius: BorderRadius.circular(1),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Color _getInvoiceColor(Transaction invoice) {
-    if (invoice.dueDate == null) return AppColors.grey.shade100;
-
-    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
-
-    if (daysUntilDue < 0) {
-      return Color(0xFFFFE6E6);
-    } else if (daysUntilDue <= 3) {
-      return Color(0xFFFFF4E6);
-    } else {
-      return AppColors.grey.shade100;
-    }
-  }
-
-  Color _getInvoiceBorderColor(Transaction invoice) {
-    if (invoice.dueDate == null) return AppColors.grey.shade300;
-
-    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
-
-    if (daysUntilDue < 0) {
-      return AppColors.red;
-    } else if (daysUntilDue <= 3) {
-      return Colors.orange;
-    } else {
-      return AppColors.green;
-    }
-  }
-
-  IconData _getInvoiceIcon(Transaction invoice) {
-    if (invoice.dueDate == null) return Icons.receipt;
-
-    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
-
-    if (daysUntilDue < 0) {
-      return Icons.warning;
-    } else if (daysUntilDue <= 3) {
-      return Icons.schedule;
-    } else {
-      return Icons.receipt;
-    }
-  }
-
-  Color _getInvoiceIconColor(Transaction invoice) {
-    if (invoice.dueDate == null) return AppColors.grey;
-
-    final daysUntilDue = invoice.dueDate!.difference(DateTime.now()).inDays;
-
-    if (daysUntilDue < 0) {
-      return AppColors.red;
-    } else if (daysUntilDue <= 3) {
-      return Colors.orange;
-    } else {
-      return AppColors.green;
-    }
-  }
-
-  Color _getDueDateTextColor(DateTime? dueDate) {
-    if (dueDate == null) return AppColors.grey;
-
-    final daysUntilDue = dueDate.difference(DateTime.now()).inDays;
-
-    if (daysUntilDue < 0) {
-      return AppColors.red;
-    } else if (daysUntilDue <= 3) {
-      return Colors.orange;
-    } else {
-      return AppColors.green;
-    }
   }
 }

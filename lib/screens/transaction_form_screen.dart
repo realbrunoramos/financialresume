@@ -108,36 +108,38 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context).configureEmailCredentials),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emailCtrl,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                hintText: 'exemplo@gmail.com',
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  hintText: 'exemplo@gmail.com',
+                ),
+                keyboardType: TextInputType.emailAddress,
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: passwordCtrl,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context).appPassword,
-                hintText: AppLocalizations.of(context).forGmailUseAppPassword,
+              SizedBox(height: 16),
+              TextField(
+                controller: passwordCtrl,
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context).appPassword,
+                  hintText: AppLocalizations.of(context).forGmailUseAppPassword,
+                ),
+                obscureText: true,
               ),
-              obscureText: true,
-            ),
-            SizedBox(height: 16),
-            Text(
-              AppLocalizations.of(context).forGmailEnableTwoStepVerificationAndGenerateAppPassword,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
+              SizedBox(height: 16),
+              Text(
+                AppLocalizations.of(context).forGmailEnableTwoStepVerificationAndGenerateAppPassword,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -575,7 +577,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao enviar email: $e')),
+          SnackBar(content: Text('${AppLocalizations.of(context).errorSendingEmail}: $e')),
         );
       }
     }
@@ -831,7 +833,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           IconButton(
             icon: Icon(Icons.email),
             onPressed: _handleEmailSend,
-            tooltip: AppLocalizations.of(context).sendEmail,
+            tooltip: AppLocalizations.of(context).send,
           ),
         ],
       ),

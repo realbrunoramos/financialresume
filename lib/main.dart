@@ -94,7 +94,7 @@ Future<void> _scheduleDueDateNotifications(BuildContext context) async {
 
         final difference = normalizedDueDate.difference(normalizedNow).inDays;
 
-        if (difference <= 7 && difference >= 1) {
+        if (difference <= 8 && difference >= 1) {
           final notificationDate = DateTime(now.year, now.month, now.day, 10, 50);
 
           final actualNotificationDate = notificationDate.isBefore(now)

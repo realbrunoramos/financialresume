@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
+import '../models/reserved_amount.dart';
 import '../services/database_service.dart';
 import '../theme/colors.dart';
 
@@ -36,21 +37,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
   final DatabaseService dbService = DatabaseService();
   List<String> _selectedMonths = [];
   List<Transaction> _allTransactions = [];
+  List<ReservedAmount> _allReservedAmounts = [];
+  double _totalReserved = 0.0;
+  double _availableAmount = 0.0;
   bool _isLoading = true;
   bool _isExporting = false;
+  bool _includeReserveAmount = false;
 
   @override
   void initState() {
     super.initState();
-    _loadTransactions();
+    _loadData();
   }
 
-  Future<void> _loadTransactions() async {
+  Future<void> _loadData() async {
     try {
       final transactions = await dbService.getAllTransactions(widget.sectionId);
+      final reservedAmounts = await dbService.getReservedAmounts(widget.sectionId);
+      final totalReserved = reservedAmounts.fold<double>(0.0, (sum, r) => sum + r.amount,);
+
+      final balance = transactions.fold<double>(0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount),);
+
+      final availableAmount = (balance - totalReserved) < 0 ? 0 : balance - totalReserved;
+
       setState(() {
         _allTransactions = transactions;
-        // Selecionar todos os meses por padrão
+        _allReservedAmounts = reservedAmounts;
+        _totalReserved = totalReserved;
+        _availableAmount = availableAmount as double;
         _selectedMonths = _getAvailableMonths();
         _isLoading = false;
       });
@@ -77,6 +91,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final monthKey = DateFormat('yyyy-MM').format(transaction.date);
       return _selectedMonths.contains(monthKey);
     }).toList();
+  }
+
+  Map<String, dynamic> _calculateFinancialMetrics(List<Transaction> transactions) {
+    final totalIncome = transactions.where((t) => t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
+    final totalExpenses = transactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
+    final balance = totalIncome - totalExpenses;
+
+    final availableAmount = (balance - _totalReserved) < 0 ? 0 : balance - _totalReserved;
+
+    return {
+      'totalIncome': totalIncome,
+      'totalExpenses': totalExpenses,
+      'balance': balance,
+      'totalReserved': _totalReserved,
+      'availableAmount': availableAmount,
+      'reservedAmounts': _allReservedAmounts,
+    };
   }
 
   void _showMonthSelectionDialog() {
@@ -188,7 +219,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final Map<String, Map<String, dynamic>> monthlyData = {};
 
     monthlyTransactions.forEach((monthKey, monthTransactions) {
-      // Apenas processar meses selecionados
       if (_selectedMonths.isNotEmpty && !_selectedMonths.contains(monthKey)) {
         return;
       }
@@ -322,6 +352,285 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  pw.Widget _buildReserveAmountDetails(Map<String, dynamic> metrics) {
+    final totalReserved = metrics['totalReserved'] as double;
+    final availableAmount = metrics['availableAmount'] as double;
+    final balance = metrics['balance'] as double;
+    final reservedAmounts = metrics['reservedAmounts'] as List<ReservedAmount>;
+
+    return pw.Container(
+      margin: const pw.EdgeInsets.only(top: 20),
+      padding: const pw.EdgeInsets.all(16),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.blue50,
+        borderRadius: pw.BorderRadius.circular(8),
+        border: pw.Border.all(color: PdfColors.blue, width: 1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(
+            'Detalhes dos Valores Reservados',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.blue,
+            ),
+          ),
+          pw.SizedBox(height: 12),
+
+          // Resumo Financeiro
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              borderRadius: pw.BorderRadius.circular(6),
+              border: pw.Border.all(color: PdfColors.grey300),
+            ),
+            child: pw.Column(
+              children: [
+                // Saldo Total
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Saldo Total:',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      '${formatValue(balance)} EUR',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: balance >= 0 ? PdfColors.green : PdfColors.red,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 6),
+
+                // Total Reservado
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Total Reservado:',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      '${formatValue(totalReserved)} EUR',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 6),
+
+                // Valor Disponível
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Valor Disponível:',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Text(
+                      '${formatValue(availableAmount)} EUR',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: availableAmount >= 0 ? PdfColors.green : PdfColors.red,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(height: 12),
+
+          // Lista de Valores Reservados
+          if (reservedAmounts.isNotEmpty) ...[
+            pw.Text(
+              'Valores Reservados Detalhados:',
+              style: pw.TextStyle(
+                fontSize: 12,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.SizedBox(height: 8),
+
+            // Cabeçalho da tabela
+            pw.Container(
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey200,
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 3,
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        'Descrição',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 1,
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        'Valor',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 1,
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        'Data',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Itens da tabela
+            for (int i = 0; i < reservedAmounts.length; i++)
+              pw.Container(
+                decoration: pw.BoxDecoration(
+                  color: i.isEven ? PdfColors.white : PdfColors.grey50,
+                  border: pw.Border.all(color: PdfColors.grey300, width: 0.5),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      flex: 3,
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(
+                          reservedAmounts[i].description,
+                          style: const pw.TextStyle(fontSize: 8),
+                          maxLines: 2,
+                        ),
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 1,
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(
+                          '${formatValue(reservedAmounts[i].amount)} EUR',
+                          style: pw.TextStyle(
+                            fontSize: 8,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.blue,
+                          ),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ),
+                    pw.Expanded(
+                      flex: 1,
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.all(8),
+                        child: pw.Text(
+                          DateFormat('dd/MM/yy').format(reservedAmounts[i].createdAt),
+                          style: const pw.TextStyle(fontSize: 7),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Total
+            pw.Container(
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blue100,
+                border: pw.Border.all(color: PdfColors.blue, width: 1),
+              ),
+              child: pw.Row(
+                children: [
+                  pw.Expanded(
+                    flex: 3,
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        'TOTAL RESERVADO:',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  pw.Expanded(
+                    flex: 2,
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.all(8),
+                      child: pw.Text(
+                        '${formatValue(totalReserved)} EUR',
+                        style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.blue,
+                        ),
+                        textAlign: pw.TextAlign.right,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            pw.Center(
+              child: pw.Text(
+                'Nenhum valor reservado encontrado',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.grey600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _exportToPdf(BuildContext context) async {
     if (_isExporting || !_canExport()) return;
 
@@ -352,9 +661,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final incomeIcon = pw.MemoryImage(incomeIconData.buffer.asUint8List());
       final expensesIcon = pw.MemoryImage(expensesIconData.buffer.asUint8List());
 
-      final totalIncome = filteredTransactions.where((t) => t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
-      final totalExpenses = filteredTransactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
-      final balance = totalIncome - totalExpenses;
+      final metrics = _calculateFinancialMetrics(filteredTransactions);
+      final totalIncome = metrics['totalIncome'] as double;
+      final totalExpenses = metrics['totalExpenses'] as double;
+      final balance = metrics['balance'] as double;
 
       final donutImage = _createSimpleDonutChart(despesa: totalExpenses, receita: totalIncome);
       final donutPng = img.encodePng(donutImage);
@@ -527,6 +837,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   ),
                 ),
 
+                // Seção de Valores Reservados
+                if (_includeReserveAmount)
+                  _buildReserveAmountDetails(metrics),
+
                 pw.SizedBox(height: 20),
 
                 // Resumo dos meses selecionados
@@ -581,8 +895,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
           },
         ),
       );
-
-      // Páginas dos meses
 
       monthlyData.forEach((monthKey, data) {
         pdf.addPage(
@@ -781,7 +1093,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
                             color: PdfColors.grey600,
                           ),
                         ),
-
                       ],
                     ),
                   ),
@@ -938,11 +1249,144 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
+  Widget _buildReserveAmountSummary() {
+    if (!_includeReserveAmount) return SizedBox.shrink();
+
+    final filteredTransactions = _getFilteredTransactions();
+    final balance = filteredTransactions.fold<double>(
+      0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount),
+    );
+
+    return Container(
+      margin: EdgeInsets.all(16),
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withAlpha(100),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            'Resumo dos Valores Reservados',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.dark,
+            ),
+          ),
+          SizedBox(height: 12),
+
+          // Saldo Total
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Saldo Total:'),
+              Text(
+                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(balance),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.dark,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+
+          // Total Reservado
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Total Reservado:'),
+              Text(
+                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_totalReserved),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.blue,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+
+          // Valor Disponível
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Valor Disponível:'),
+              Text(
+                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_availableAmount),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: _availableAmount >= 0 ? AppColors.green : AppColors.red,
+                ),
+              ),
+            ],
+          ),
+
+          if (_allReservedAmounts.isNotEmpty) ...[
+            SizedBox(height: 12),
+            Divider(),
+            SizedBox(height: 8),
+            Text(
+              'Detalhes das Reservas:',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.dark,
+              ),
+            ),
+            SizedBox(height: 8),
+            ..._allReservedAmounts.map((reserve) =>
+                Container(
+                  margin: EdgeInsets.only(bottom: 4),
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey.shade100,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          reserve.description,
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(reserve.amount),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+            ).toList(),
+          ],
+        ],
+      ),
+    );
+  }
+
   bool _canExport() {
     return _selectedMonths.isNotEmpty && _getFilteredTransactions().isNotEmpty;
   }
+
   @override
   Widget build(BuildContext context) {
+    final filteredTransactions = _getFilteredTransactions();
+    final metrics = _calculateFinancialMetrics(filteredTransactions);
+
     return Scaffold(
       backgroundColor: AppColors.light,
       appBar: AppBar(
@@ -1011,7 +1455,26 @@ class _SummaryScreenState extends State<SummaryScreen> {
         children: [
           _buildMonthFilterChip(),
 
-          // Cartão de Saldo
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Row(
+              children: [
+                Checkbox(
+                  activeColor: AppColors.blue,
+                  value: _includeReserveAmount,
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _includeReserveAmount = value ?? false;
+                    });
+                  },
+                ),
+                Text('Incluir valores reservados no PDF'),
+              ],
+            ),
+          ),
+
+          _buildReserveAmountSummary(),
+
           Container(
             margin: EdgeInsets.all(16),
             padding: EdgeInsets.all(20),
@@ -1061,16 +1524,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       ),
                     ),
                     Text(
-                      NumberFormat.currency(locale: 'pt_PT', symbol: '€')
-                          .format(_getFilteredTransactions().fold<double>(
-                          0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount))),
+                      NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(metrics['balance']),
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: _getFilteredTransactions().fold<double>(
-                            0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount)) >= 0
-                            ? AppColors.green
-                            : AppColors.red,
+                        color: (metrics['balance'] as double) >= 0 ? AppColors.green : AppColors.red,
                       ),
                     ),
                   ],
@@ -1087,9 +1545,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 Expanded(
                   child: _buildQuickStatCard(
                     AppLocalizations.of(context).income,
-                    _getFilteredTransactions()
-                        .where((t) => t.isCredit)
-                        .fold<double>(0, (sum, t) => sum + t.amount),
+                    metrics['totalIncome'] as double,
                     AppColors.green,
                     Icons.trending_up,
                   ),
@@ -1098,9 +1554,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 Expanded(
                   child: _buildQuickStatCard(
                     AppLocalizations.of(context).expenses,
-                    _getFilteredTransactions()
-                        .where((t) => !t.isCredit)
-                        .fold<double>(0, (sum, t) => sum + t.amount),
+                    metrics['totalExpenses'] as double,
                     AppColors.red,
                     Icons.trending_down,
                   ),

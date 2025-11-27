@@ -171,9 +171,9 @@ class DatabaseService {
       await saveSetting('language', 'pt');
     }
 
-    final apiKey = await getSetting('api_key');
+    final apiKey = await getSetting('gemini_api_key');
     if (apiKey == null) {
-      await saveSetting('api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
+      await saveSetting('gemini_api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
     }
   }
 
