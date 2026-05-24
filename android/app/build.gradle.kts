@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.financialresume"
-        minSdk = 23//flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion//flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
