@@ -13,6 +13,7 @@ import '../models/transaction.dart';
 import '../models/reserved_amount.dart';
 import '../services/database_service.dart';
 import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 
 class _TransactionWithBalance {
   final Transaction transaction;
@@ -27,10 +28,10 @@ class _TransactionWithBalance {
 class SummaryScreen extends StatefulWidget {
   final String sectionId;
 
-  const SummaryScreen({required this.sectionId});
+  const SummaryScreen({super.key, required this.sectionId});
 
   @override
-  _SummaryScreenState createState() => _SummaryScreenState();
+  State<SummaryScreen> createState() => _SummaryScreenState();
 }
 
 class _SummaryScreenState extends State<SummaryScreen> {
@@ -112,64 +113,111 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   void _showMonthSelectionDialog() {
     final availableMonths = _getAvailableMonths();
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(AppLocalizations.of(context).selectMonths),
-          content: Container(
-            width: double.maxFinite,
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                ...availableMonths.map((monthKey) {
-                  final monthDate = DateFormat('yyyy-MM').parse(monthKey);
-                  final monthName = DateFormat('MMMM yyyy', AppLocalizations.of(context).monthName).format(monthDate);
-
-                  return CheckboxListTile(
-                    title: Text(monthName),
-                    value: _selectedMonths.contains(monthKey),
-                    onChanged: (selected) {
-                      setDialogState(() {
-                        if (selected == true) {
-                          _selectedMonths.add(monthKey);
-                        } else {
-                          _selectedMonths.remove(monthKey);
-                        }
-                      });
-                    },
-                  );
-                }).toList(),
-              ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return SafeArea(
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              margin: const EdgeInsets.all(AppTokens.sp12),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : AppColors.white,
+                borderRadius: BorderRadius.circular(AppTokens.radius24),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Handle
+                  Container(
+                    width: 36, height: 4,
+                    margin: const EdgeInsets.only(top: AppTokens.sp12),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.darkBorder : AppColors.grey200,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Title + actions
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        AppTokens.sp20, AppTokens.sp12, AppTokens.sp12, 0),
+                    child: Row(children: [
+                      Expanded(
+                        child: Text(l.selectMonths,
+                            style: TextStyle(
+                              fontSize: 17, fontWeight: FontWeight.w700,
+                              color: isDark ? AppColors.darkText : AppColors.dark,
+                              letterSpacing: -0.3,
+                            )),
+                      ),
+                      TextButton(
+                        onPressed: () => setSheetState(() =>
+                            _selectedMonths = availableMonths.toList()),
+                        child: Text(l.selectAll),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            setSheetState(() => _selectedMonths.clear()),
+                        child: Text(l.clear),
+                      ),
+                    ]),
+                  ),
+                  // Month list
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.sp8),
+                      children: availableMonths.map((key) {
+                        final date  = DateFormat('yyyy-MM').parse(key);
+                        final name  = DateFormat('MMMM yyyy', l.monthName)
+                            .format(date);
+                        final sel   = _selectedMonths.contains(key);
+                        return CheckboxListTile(
+                          title: Text(name,
+                              style: TextStyle(
+                                  color: isDark
+                                      ? AppColors.darkText
+                                      : AppColors.dark)),
+                          value: sel,
+                          activeColor: AppColors.info,
+                          onChanged: (v) => setSheetState(() {
+                            if (v == true) {
+                              _selectedMonths.add(key);
+                            } else {
+                              _selectedMonths.remove(key);
+                            }
+                          }),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  // Apply button
+                  Padding(
+                    padding: const EdgeInsets.all(AppTokens.sp16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          setState(() {});
+                        },
+                        child: Text(l.apply),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setDialogState(() {
-                  _selectedMonths = availableMonths.toList();
-                });
-              },
-              child: Text(AppLocalizations.of(context).selectAll),
-            ),
-            TextButton(
-              onPressed: () {
-                setDialogState(() {
-                  _selectedMonths.clear();
-                });
-              },
-              child: Text(AppLocalizations.of(context).clear),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                setState(() {});
-              },
-              child: Text(AppLocalizations.of(context).apply),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1196,182 +1244,155 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildMonthFilterChip() {
-    final hasSelectedMonths = _selectedMonths.isNotEmpty;
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasSel = _selectedMonths.isNotEmpty;
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppTokens.sp16, AppTokens.sp8, AppTokens.sp16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    FilterChip(
-                      label: Text(
-                        _selectedMonths.isEmpty
-                            ? AppLocalizations.of(context).noMonthSelected
-                            : '${_selectedMonths.length} ${AppLocalizations.of(context).months}',
-                      ),
-                      selected: hasSelectedMonths,
-                      onSelected: (_) => _showMonthSelectionDialog(),
-                      backgroundColor: hasSelectedMonths ? AppColors.blue : AppColors.grey,
-                      selectedColor: AppColors.blue,
-                      labelStyle: TextStyle(color: AppColors.white),
-                      checkmarkColor: AppColors.white,
+          InkWell(
+            onTap: _showMonthSelectionDialog,
+            borderRadius: BorderRadius.circular(AppTokens.radius12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.sp16, vertical: AppTokens.sp12),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.darkCard : AppColors.white,
+                borderRadius: BorderRadius.circular(AppTokens.radius12),
+                border: Border.all(
+                  color: hasSel
+                      ? AppColors.info
+                      : (isDark ? AppColors.darkBorder : AppColors.grey200),
+                  width: hasSel ? 1.5 : 1,
+                ),
+                boxShadow: isDark ? null : AppTokens.shadowSm,
+              ),
+              child: Row(children: [
+                Icon(Icons.calendar_month_rounded,
+                    size: 18,
+                    color: hasSel
+                        ? AppColors.info
+                        : (isDark ? AppColors.darkSubtext : AppColors.grey400)),
+                const SizedBox(width: AppTokens.sp10),
+                Expanded(
+                  child: Text(
+                    hasSel
+                        ? '${_selectedMonths.length} ${l.months}'
+                        : l.noMonthSelected,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: hasSel
+                          ? AppColors.info
+                          : (isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey500),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: Icon(Icons.filter_list, color: AppColors.dark),
-                onPressed: _showMonthSelectionDialog,
-                tooltip: AppLocalizations.of(context).filterMonths,
-              ),
-            ],
+                Icon(Icons.tune_rounded,
+                    size: 18,
+                    color:
+                        isDark ? AppColors.darkSubtext : AppColors.grey400),
+              ]),
+            ),
           ),
-          if (!hasSelectedMonths)
+          if (!hasSel) ...[
+            const SizedBox(height: AppTokens.sp4),
             Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
+              padding: const EdgeInsets.only(left: AppTokens.sp4),
               child: Text(
-                AppLocalizations.of(context).selectAtLeastOneMonthToExport,
-                style: TextStyle(
-                  color: AppColors.red,
-                  fontSize: 12,
-                ),
+                l.selectAtLeastOneMonthToExport,
+                style: const TextStyle(
+                    color: AppColors.danger, fontSize: 12),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildReserveAmountSummary() {
-    if (!_includeReserveAmount) return SizedBox.shrink();
+    if (!_includeReserveAmount) return const SizedBox.shrink();
 
-    final filteredTransactions = _getFilteredTransactions();
-    final balance = filteredTransactions.fold<double>(
-      0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount),
-    );
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final cur     = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final balance = _getFilteredTransactions().fold<double>(
+        0, (s, t) => s + (t.isCredit ? t.amount : -t.amount));
 
     return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(
+          AppTokens.sp16, AppTokens.sp8, AppTokens.sp16, 0),
+      padding: const EdgeInsets.all(AppTokens.sp16),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withAlpha(100),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Resumo dos Valores Reservados',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.dark,
-            ),
-          ),
-          SizedBox(height: 12),
-
-          // Saldo Total
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Saldo Total:'),
-              Text(
-                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(balance),
+          Row(children: [
+            const Icon(Icons.savings_rounded,
+                size: 16, color: AppColors.info),
+            const SizedBox(width: AppTokens.sp8),
+            Text(AppLocalizations.of(context).amountReservations,
                 style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.dark,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-
-          // Total Reservado
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Total Reservado:'),
-              Text(
-                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_totalReserved),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.blue,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-
-          // Valor Disponível
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Valor Disponível:'),
-              Text(
-                NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_availableAmount),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: _availableAmount >= 0 ? AppColors.green : AppColors.red,
-                ),
-              ),
-            ],
-          ),
-
+                  fontSize: 15, fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.darkText : AppColors.dark,
+                )),
+          ]),
+          const SizedBox(height: AppTokens.sp12),
+          _SummaryRow(
+              label: AppLocalizations.of(context).balance,
+              value: cur.format(balance),
+              color: isDark ? AppColors.darkText : AppColors.dark,
+              isDark: isDark),
+          const SizedBox(height: AppTokens.sp6),
+          _SummaryRow(
+              label: AppLocalizations.of(context).totalReserved,
+              value: cur.format(_totalReserved),
+              color: AppColors.info,
+              isDark: isDark),
+          const SizedBox(height: AppTokens.sp6),
+          _SummaryRow(
+              label: AppLocalizations.of(context).availableAmount,
+              value: cur.format(_availableAmount),
+              color: _availableAmount >= 0
+                  ? AppColors.success
+                  : AppColors.danger,
+              isDark: isDark),
           if (_allReservedAmounts.isNotEmpty) ...[
-            SizedBox(height: 12),
-            Divider(),
-            SizedBox(height: 8),
-            Text(
-              'Detalhes das Reservas:',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppColors.dark,
-              ),
-            ),
-            SizedBox(height: 8),
-            ..._allReservedAmounts.map((reserve) =>
-                Container(
-                  margin: EdgeInsets.only(bottom: 4),
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.grey.shade100,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          reserve.description,
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(reserve.amount),
-                        style: TextStyle(
+            Divider(height: AppTokens.sp24,
+                color: isDark ? AppColors.darkBorder : AppColors.grey100),
+            ..._allReservedAmounts.map((r) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppTokens.sp6),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(r.description,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? AppColors.darkSubtext
+                                : AppColors.grey500,
+                          )),
+                    ),
+                    const SizedBox(width: AppTokens.sp8),
+                    Text(cur.format(r.amount),
+                        style: const TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-            ).toList(),
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.info,
+                        )),
+                  ]),
+                )),
           ],
         ],
       ),
@@ -1384,246 +1405,266 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredTransactions = _getFilteredTransactions();
-    final metrics = _calculateFinancialMetrics(filteredTransactions);
+    final l       = AppLocalizations.of(context);
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
+    final cur     = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final filtered = _getFilteredTransactions();
+    final metrics  = _calculateFinancialMetrics(filtered);
+    final balance  = metrics['balance'] as double;
 
     return Scaffold(
-      backgroundColor: AppColors.light,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
       appBar: AppBar(
-        title: Text(
-          AppLocalizations.of(context).financialSummary,
-          style: TextStyle(
-            color: AppColors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: AppColors.dark,
-        iconTheme: IconThemeData(color: AppColors.white),
+        backgroundColor:
+            isDark ? AppColors.darkSurface : const Color(0xFF1C1C1E),
+        foregroundColor: AppColors.white,
+        elevation: 0,
+        title: Text(l.financialSummary,
+            style: const TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.3)),
         actions: [
           if (!_isLoading && _allTransactions.isNotEmpty)
             IconButton(
               icon: _isExporting
-                  ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                ),
-              )
-                  : Icon(Icons.download, color: _selectedMonths.isEmpty ? AppColors.grey : AppColors.white),
-              onPressed: _isExporting || _selectedMonths.isEmpty ? null : () => _exportToPdf(context),
-              tooltip: _selectedMonths.isEmpty ? AppLocalizations.of(context).selectMonthsToExport : AppLocalizations.of(context).exportToPdf,
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(AppColors.white)))
+                  : Icon(Icons.download_rounded,
+                      color: _selectedMonths.isEmpty
+                          ? AppColors.grey500
+                          : AppColors.white),
+              onPressed: _isExporting || _selectedMonths.isEmpty
+                  ? null
+                  : () => _exportToPdf(context),
+              tooltip: _selectedMonths.isEmpty
+                  ? l.selectMonthsToExport
+                  : l.exportToPdf,
             ),
         ],
       ),
       body: _isLoading
-          ? Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(AppColors.dark),
-        ),
-      )
+          ? const Center(child: CircularProgressIndicator())
           : _allTransactions.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long,
-              color: AppColors.grey,
-              size: 64,
-            ),
-            SizedBox(height: 16),
-            Text(
-              AppLocalizations.of(context).noTransactionsToDisplay,
-              style: TextStyle(
-                color: AppColors.grey,
-                fontSize: 18,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              AppLocalizations.of(context).addTransactionsToViewSummary,
-              style: TextStyle(
-                color: AppColors.grey,
-              ),
-            ),
-          ],
-        ),
-      )
-          : Column(
-        children: [
-          _buildMonthFilterChip(),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Row(
-              children: [
-                Checkbox(
-                  activeColor: AppColors.blue,
-                  value: _includeReserveAmount,
-                  onChanged: (bool? value) {
-                    setState(() {
-                      _includeReserveAmount = value ?? false;
-                    });
-                  },
-                ),
-                Text('Incluir valores reservados no PDF'),
-              ],
-            ),
-          ),
-
-          _buildReserveAmountSummary(),
-
-          Container(
-            margin: EdgeInsets.all(16),
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.black.withAlpha(100),
-                  blurRadius: 8,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long_rounded,
+                          size: 64,
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey300),
+                      const SizedBox(height: AppTokens.sp16),
+                      Text(l.noTransactionsToDisplay,
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? AppColors.darkText
+                                  : AppColors.dark)),
+                      const SizedBox(height: AppTokens.sp8),
+                      Text(l.addTransactionsToViewSummary,
+                          style: TextStyle(
+                              color: isDark
+                                  ? AppColors.darkSubtext
+                                  : AppColors.grey500)),
+                    ],
+                  ),
+                )
+              : Column(
                   children: [
-                    Text(
-                      AppLocalizations.of(context).periodLabel,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.dark,
-                      ),
+                    // Month filter
+                    const SizedBox(height: AppTokens.sp12),
+                    _buildMonthFilterChip(),
+
+                    // Include reservations toggle
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.sp16, vertical: AppTokens.sp4),
+                      child: Row(children: [
+                        Checkbox(
+                          value: _includeReserveAmount,
+                          activeColor: AppColors.info,
+                          onChanged: (v) => setState(
+                              () => _includeReserveAmount = v ?? false),
+                        ),
+                        Expanded(
+                          child: Text(
+                            l.amountReservations,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: isDark
+                                  ? AppColors.darkText
+                                  : AppColors.dark,
+                            ),
+                          ),
+                        ),
+                      ]),
                     ),
-                    Text(
-                      _getSelectedMonthsRange(),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.blue,
+
+                    _buildReserveAmountSummary(),
+
+                    // Balance card
+                    Container(
+                      margin: EdgeInsets.fromLTRB(
+                          AppTokens.sp16,
+                          _includeReserveAmount
+                              ? AppTokens.sp8
+                              : AppTokens.sp8,
+                          AppTokens.sp16, AppTokens.sp8),
+                      padding: const EdgeInsets.all(AppTokens.sp16),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkCard : AppColors.white,
+                        borderRadius:
+                            BorderRadius.circular(AppTokens.radius16),
+                        border: Border.all(
+                            color: isDark
+                                ? AppColors.darkBorder
+                                : AppColors.grey100),
+                        boxShadow: isDark ? null : AppTokens.shadowSm,
+                      ),
+                      child: Column(children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(l.periodLabel,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: isDark
+                                      ? AppColors.darkSubtext
+                                      : AppColors.grey500,
+                                )),
+                            Text(_getSelectedMonthsRange(),
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.info,
+                                )),
+                          ],
+                        ),
+                        const SizedBox(height: AppTokens.sp10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(l.totalBalance,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? AppColors.darkText
+                                      : AppColors.dark,
+                                )),
+                            Text(cur.format(balance),
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                  color: balance >= 0
+                                      ? AppColors.success
+                                      : AppColors.danger,
+                                )),
+                          ],
+                        ),
+                      ]),
+                    ),
+
+                    // Income / Expense stat cards
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.sp16),
+                      child: Row(children: [
+                        Expanded(
+                          child: _buildQuickStatCard(
+                            l.income,
+                            metrics['totalIncome'] as double,
+                            AppColors.success,
+                            Icons.trending_up_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: AppTokens.sp8),
+                        Expanded(
+                          child: _buildQuickStatCard(
+                            l.expenses,
+                            metrics['totalExpenses'] as double,
+                            AppColors.danger,
+                            Icons.trending_down_rounded,
+                          ),
+                        ),
+                      ]),
+                    ),
+
+                    // Transactions data table
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.all(AppTokens.sp16),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.darkCard : AppColors.white,
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radius16),
+                          border: Border.all(
+                              color: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.grey100),
+                          boxShadow: isDark ? null : AppTokens.shadowSm,
+                        ),
+                        child: ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radius16),
+                          child: _buildTransactionsTable(),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      AppLocalizations.of(context).totalBalance,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.dark,
-                      ),
-                    ),
-                    Text(
-                      NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(metrics['balance']),
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: (metrics['balance'] as double) >= 0 ? AppColors.green : AppColors.red,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // Estatísticas Rápidas
-          Container(
-            margin: EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _buildQuickStatCard(
-                    AppLocalizations.of(context).income,
-                    metrics['totalIncome'] as double,
-                    AppColors.green,
-                    Icons.trending_up,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: _buildQuickStatCard(
-                    AppLocalizations.of(context).expenses,
-                    metrics['totalExpenses'] as double,
-                    AppColors.red,
-                    Icons.trending_down,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tabela
-          Expanded(
-            child: Container(
-              margin: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.black.withAlpha(100),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: _buildTransactionsTable(),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildQuickStatCard(String title, double value, Color color, IconData icon) {
+  Widget _buildQuickStatCard(
+      String title, double value, Color color, IconData icon) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppTokens.sp14),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withAlpha(50),
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius12),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 16),
-              SizedBox(width: 4),
-              Text(
-                title,
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: color.withAlpha(isDark ? 40 : 20),
+                borderRadius: BorderRadius.circular(AppTokens.radius6),
+              ),
+              child: Icon(icon, size: 13, color: color),
+            ),
+            const SizedBox(width: AppTokens.sp6),
+            Text(title,
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.dark,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4),
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                  color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+                )),
+          ]),
+          const SizedBox(height: AppTokens.sp8),
           Text(
             NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(value),
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
               color: color,
+              letterSpacing: -0.3,
             ),
           ),
         ],
@@ -1632,113 +1673,122 @@ class _SummaryScreenState extends State<SummaryScreen> {
   }
 
   Widget _buildTransactionsTable() {
-    final filteredTransactions = _getFilteredTransactions();
-    final format = DateFormat('dd/MM/yyyy HH:mm');
-    final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final txns   = _getFilteredTransactions();
+    final fmt    = DateFormat('dd/MM/yyyy');
+    final cur    = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hdrBg  = isDark ? AppColors.darkSurface : AppColors.dark;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: DataTable(
           columnSpacing: 20,
-          horizontalMargin: 16,
-          headingRowColor: WidgetStateProperty.all(AppColors.dark),
+          horizontalMargin: AppTokens.sp16,
+          headingRowColor: WidgetStateProperty.all(hdrBg),
+          dataRowColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.selected)) {
+              return AppColors.info.withAlpha(20);
+            }
+            return isDark ? AppColors.darkBackground : null;
+          }),
+          dividerThickness: 0.5,
           columns: [
-            DataColumn(
-              label: Text(
-                AppLocalizations.of(context).date,
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                AppLocalizations.of(context).description,
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                AppLocalizations.of(context).value,
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            DataColumn(
-              label: Text(
-                AppLocalizations.of(context).invoice,
-                style: TextStyle(
-                  color: AppColors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
+            DataColumn(label: Text(l.date,
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600))),
+            DataColumn(label: Text(l.description,
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600))),
+            DataColumn(label: Text(l.value,
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600))),
+            DataColumn(label: Text(l.invoice,
+                style: const TextStyle(
+                    color: AppColors.white, fontWeight: FontWeight.w600))),
           ],
-          rows: filteredTransactions.map((t) {
-            return DataRow(
-              cells: [
-                DataCell(
-                  Text(
-                    format.format(t.date),
-                    style: TextStyle(color: AppColors.dark),
-                  ),
-                ),
-                DataCell(
-                  Container(
-                    constraints: BoxConstraints(maxWidth: 200),
-                    child: Text(
-                      t.description,
-                      style: TextStyle(color: AppColors.dark),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    "${t.isCredit ? '+' : '-'}${currency.format(t.amount)}",
+          rows: txns.map((t) => DataRow(cells: [
+                DataCell(Text(fmt.format(t.date),
                     style: TextStyle(
-                      color: t.isCredit ? AppColors.green : AppColors.red,
-                      fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: isDark ? AppColors.darkSubtext : AppColors.grey600))),
+                DataCell(ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 200),
+                  child: Text(
+                    t.description.isNotEmpty ? t.description : t.entity,
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? AppColors.darkText : AppColors.dark),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )),
+                DataCell(Text(
+                  '${t.isCredit ? '+' : '-'}${cur.format(t.amount)}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: t.isCredit ? AppColors.success : AppColors.danger,
+                  ),
+                )),
+                DataCell(Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      t.receiptPaths.isEmpty
+                          ? Icons.receipt_outlined
+                          : Icons.receipt_rounded,
+                      color: t.receiptPaths.isEmpty
+                          ? (isDark ? AppColors.darkSubtext : AppColors.grey400)
+                          : AppColors.info,
+                      size: 18,
                     ),
-                  ),
-                ),
-                DataCell(
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        t.receiptPaths.isEmpty
-                            ? Icons.receipt_outlined
-                            : Icons.receipt,
-                        color: t.receiptPaths.isEmpty
-                            ? AppColors.grey
-                            : AppColors.blue,
-                        size: 20,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        t.receiptPaths.isEmpty
-                            ? AppLocalizations.of(context).none
-                            : '${t.receiptPaths.length}',
-                        style: TextStyle(
-                          color: AppColors.dark,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
+                    const SizedBox(width: 4),
+                    Text(
+                      t.receiptPaths.isEmpty
+                          ? l.none
+                          : '${t.receiptPaths.length}',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey500),
+                    ),
+                  ],
+                )),
+              ])).toList(),
         ),
       ),
     );
   }
+}
+
+// ── Helper row widget for reserve summary ─────────────────────────────────────
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool isDark;
+  const _SummaryRow(
+      {required this.label,
+      required this.value,
+      required this.color,
+      required this.isDark});
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+              )),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: color)),
+        ],
+      );
 }
