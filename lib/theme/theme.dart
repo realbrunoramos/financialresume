@@ -75,14 +75,14 @@ final appTheme = ThemeData(
       fontWeight: FontWeight.w400,
     ),
   ),
-  cardTheme: CardTheme(
+  cardTheme: CardThemeData(
     color: AppColors.white,
     elevation: 2,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(12),
     ),
   ),
-  dialogTheme: DialogTheme(
+  dialogTheme: DialogThemeData(
     backgroundColor: AppColors.white,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
@@ -110,9 +110,9 @@ final appTheme = ThemeData(
     ),
   ),
   switchTheme: SwitchThemeData(
-    thumbColor: MaterialStateProperty.all(AppColors.white),
-    trackColor: MaterialStateProperty.resolveWith((states) {
-      if (states.contains(MaterialState.selected)) {
+    thumbColor: WidgetStateProperty.all(AppColors.white),
+    trackColor: WidgetStateProperty.resolveWith((states) {
+      if (states.contains(WidgetState.selected)) {
         return AppColors.dark;
       }
       return AppColors.grey.shade400;

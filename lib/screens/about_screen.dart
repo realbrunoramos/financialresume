@@ -18,7 +18,6 @@ class _AboutScreenState extends State<AboutScreen> {
     version: "2.0.2",
     buildNumber: '1',
   );
-
   @override
   void initState() {
     super.initState();
