@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/database_service.dart';
+import '../services/secure_storage_service.dart';
 import '../services/notification_service.dart';
 import '../theme/colors.dart';
 
@@ -849,7 +850,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
     });
 
     try {
-      final apiKey = await dbService.getSetting('gemini_api_key');
+      final apiKey = await SecureStorageService.readApiKey();
 
       if (apiKey == null || apiKey.isEmpty) {
         if (mounted) {

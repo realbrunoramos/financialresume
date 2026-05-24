@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../services/database_service.dart';
+import '../services/secure_storage_service.dart';
 import '../services/file_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
@@ -481,7 +482,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     """;
 
     try {
-      final apiKey = await dbService.getSetting('gemini_api_key');
+      final apiKey = await SecureStorageService.readApiKey();
 
       Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
 

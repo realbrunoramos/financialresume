@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/language_provider.dart';
 import '../services/database_service.dart';
+import '../services/secure_storage_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -46,7 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final apiKey  = await _db.getSetting('gemini_api_key');
+      final apiKey  = await SecureStorageService.readApiKey();
       final langKey = await _db.getSetting('language');
 
       if (apiKey != null) _apiKeyCtrl.text = apiKey;
@@ -59,10 +60,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
 
       if (langKey == null) await _db.saveSetting('language', 'pt');
-      if (apiKey == null) {
-        await _db.saveSetting(
-            'gemini_api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
-      }
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -72,7 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final l = AppLocalizations.of(context);
     try {
       if (_apiKeyCtrl.text.isNotEmpty) {
-        await _db.saveSetting('gemini_api_key', _apiKeyCtrl.text);
+        await SecureStorageService.writeApiKey(_apiKeyCtrl.text);
       }
       await _db.saveSetting('language', _lang);
       if (mounted) {

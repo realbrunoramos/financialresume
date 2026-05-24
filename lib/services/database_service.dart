@@ -171,10 +171,6 @@ class DatabaseService {
       await saveSetting('language', 'pt');
     }
 
-    final apiKey = await getSetting('gemini_api_key');
-    if (apiKey == null) {
-      await saveSetting('gemini_api_key', 'AIzaSyDUpBTcTpDLDbbiKw0BAjsHhB7cJVkT5ag');
-    }
   }
 
   Future<void> _recreateTransactionsTable(Database db) async {
