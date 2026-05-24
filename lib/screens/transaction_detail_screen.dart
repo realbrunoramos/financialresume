@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
+import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 import 'image_viewer_screen.dart';
 import 'transaction_form_screen.dart';
 
@@ -13,302 +16,741 @@ class TransactionDetailScreen extends StatefulWidget {
   final String sectionId;
 
   const TransactionDetailScreen({
-    Key? key,
+    super.key,
     required this.transaction,
     required this.sectionId,
-  }) : super(key: key);
+  });
 
   @override
-  State<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
+  State<TransactionDetailScreen> createState() =>
+      _TransactionDetailScreenState();
 }
 
-class _TransactionDetailScreenState extends State<TransactionDetailScreen> with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  bool _isExpanded = false;
+class _TransactionDetailScreenState extends State<TransactionDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _animationController.forward();
+    _ctrl = AnimationController(vsync: this, duration: AppTokens.normal);
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  void _toggleExpand() {
-    setState(() {
-      _isExpanded = !_isExpanded;
-    });
-    if (_isExpanded) {
-      _animationController.forward();
-    } else {
-      _animationController.reverse();
-    }
+  void _share() {
+    final fmt = DateFormat('dd/MM/yyyy');
+    final cur = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final l   = AppLocalizations.of(context);
+    final t   = widget.transaction;
+    Share.share('''${l.transactionDescription}: ${t.description}
+${l.entity}: ${t.entity}
+${l.amount}: ${t.isCredit ? '+' : '-'} ${cur.format(t.amount)}
+${l.dateField}: ${fmt.format(t.date)}
+${l.reference}: ${t.monthRef ?? 'N/A'}
+${l.paidStatus}: ${t.paid ? l.yes : l.no}''');
   }
 
-  void _shareTransaction() {
-    final format = DateFormat('dd/MM/yyyy');
-    final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-    final shareText = '''
-${AppLocalizations.of(context).transactionDescription} ${widget.transaction.description}
-${AppLocalizations.of(context).entity} ${widget.transaction.entity}
-${AppLocalizations.of(context).amount} ${widget.transaction.isCredit ? '+' : '-'} ${currency.format(widget.transaction.amount)}
-${AppLocalizations.of(context).dateField} ${format.format(widget.transaction.date)}
-${AppLocalizations.of(context).reference} ${widget.transaction.monthRef ?? 'N/A'}
-${AppLocalizations.of(context).paidStatus} ${widget.transaction.paid ? "${AppLocalizations.of(context).yes}" : "${AppLocalizations.of(context).no}"}
-    ''';
-    Share.share(shareText);
+  void _editTransaction() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionFormScreen(
+          transaction: widget.transaction,
+          sectionId: widget.sectionId,
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteSheet() {
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(AppTokens.sp12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCard : AppColors.white,
+            borderRadius: BorderRadius.circular(AppTokens.radius24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36, height: 4,
+                margin: const EdgeInsets.only(top: AppTokens.sp12),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkBorder : AppColors.grey200,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppTokens.sp20, AppTokens.sp16, AppTokens.sp20, AppTokens.sp4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(l.deleteTransaction,
+                      style: TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.darkText : AppColors.dark,
+                        letterSpacing: -0.3,
+                      )),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppTokens.sp20, AppTokens.sp8, AppTokens.sp20, AppTokens.sp20),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(l.confirmDeleteTransaction,
+                      style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey500)),
+                  const SizedBox(height: AppTokens.sp24),
+                  Row(children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: Text(l.cancel),
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.sp12),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.danger),
+                        onPressed: () async {
+                          Navigator.pop(context);
+                          await DatabaseService()
+                              .deleteTransaction(widget.transaction.id);
+                          if (mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(l.transactionDeleted),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        },
+                        child: Text(l.delete),
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd/MM/yyyy');
-    final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-    final isCredit = widget.transaction.isCredit;
-    final icon = isCredit ? Icons.arrow_upward : Icons.arrow_downward;
-    final iconColor = isCredit ? Colors.green : Colors.red;
+    final isDark   = Theme.of(context).brightness == Brightness.dark;
+    final l        = AppLocalizations.of(context);
+    final t        = widget.transaction;
+    final fmt      = DateFormat('dd/MM/yyyy');
+    final cur      = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final isCredit = t.isCredit;
+    final amtColor = isCredit ? AppColors.success : AppColors.danger;
+    final bgColor  = isCredit
+        ? (isDark ? AppColors.success.withAlpha(30) : AppColors.successLight)
+        : (isDark ? AppColors.danger.withAlpha(30) : AppColors.dangerLight);
 
-    final docType = widget.transaction.docType;
+    final docType        = t.docType;
     final isComprovativo = docType == '3';
-    final isTalao = docType == '1';
+    final isTalao        = docType == '1';
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor:
+          isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
       appBar: AppBar(
+        backgroundColor:
+            isDark ? AppColors.darkSurface : AppColors.white,
+        foregroundColor: isDark ? AppColors.darkText : AppColors.dark,
         elevation: 0,
-        backgroundColor: Colors.transparent,
         title: Text(
-          widget.transaction.description,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          t.description.isNotEmpty ? t.description : t.entity,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: _shareTransaction,
+            icon: const Icon(Icons.share_rounded),
+            tooltip: 'Share',
+            onPressed: _share,
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              if (value == 'edit') {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => TransactionFormScreen(
-                      transaction: widget.transaction,
-                      sectionId: widget.sectionId,
-                    ),
-                  ),
-                );
-              } else if (value == 'delete') {
-                _showDeleteDialog(context);
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(value: 'edit', child: Text(AppLocalizations.of(context).edit)),
-              PopupMenuItem(value: 'delete', child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: Colors.red))),
-            ],
+          IconButton(
+            icon: const Icon(Icons.edit_rounded),
+            tooltip: l.edit,
+            onPressed: _editTransaction,
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_rounded, color: AppColors.danger),
+            tooltip: l.delete,
+            onPressed: _showDeleteSheet,
           ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: AnimatedBuilder(
-              animation: _fadeAnimation,
-              builder: (context, child) {
-                return Opacity(
-                  opacity: _fadeAnimation.value,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [iconColor.withAlpha(50), Colors.transparent],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+      body: FadeTransition(
+        opacity: _fade,
+        child: CustomScrollView(
+          slivers: [
+            // ── Hero header ──────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(
+                    AppTokens.sp16, AppTokens.sp16,
+                    AppTokens.sp16, AppTokens.sp8),
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(AppTokens.radius20),
+                  border: Border.all(
+                    color: amtColor.withAlpha(isDark ? 60 : 40),
+                  ),
+                ),
+                padding: const EdgeInsets.all(AppTokens.sp24),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: amtColor.withAlpha(isDark ? 50 : 30),
+                        shape: BoxShape.circle,
                       ),
-                      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(20)),
+                      child: Icon(
+                        isCredit
+                            ? Icons.arrow_downward_rounded
+                            : Icons.arrow_upward_rounded,
+                        size: 28,
+                        color: amtColor,
+                      ),
                     ),
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
+                    const SizedBox(height: AppTokens.sp12),
+                    Text(
+                      '${isCredit ? '+' : '-'} ${cur.format(t.amount)}',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: amtColor,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                    if (t.entity.isNotEmpty) ...[
+                      const SizedBox(height: AppTokens.sp4),
+                      Text(
+                        t.entity,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Details ──────────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.sp16, vertical: AppTokens.sp4),
+                child: Column(
+                  children: [
+                    _InfoCard(
+                      isDark: isDark,
                       children: [
-                        Icon(
-                          icon,
-                          size: 48,
-                          color: iconColor,
+                        _InfoRow(
+                          icon: Icons.calendar_today_rounded,
+                          label: l.date,
+                          value: fmt.format(t.date),
+                          isDark: isDark,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${isCredit ? '+' : '-'} ${currency.format(widget.transaction.amount)}',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: iconColor,
+                        if (t.description.isNotEmpty) ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.notes_rounded,
+                            label: l.description,
+                            value: t.description,
+                            isDark: isDark,
                           ),
-                        ),
-                        Text(
-                          widget.transaction.entity,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey[700],
+                        ],
+                        if (t.entity.isNotEmpty) ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.business_rounded,
+                            label: l.entity,
+                            value: t.entity,
+                            isDark: isDark,
                           ),
-                        ),
+                        ],
+                        if (t.monthRef != null &&
+                            t.monthRef!.isNotEmpty) ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.date_range_rounded,
+                            label: l.referenceMonthYear,
+                            value: t.monthRef!,
+                            isDark: isDark,
+                          ),
+                        ],
+                        if (t.dueDate != null) ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.event_rounded,
+                            label: l.dueDate,
+                            value: fmt.format(t.dueDate!),
+                            isDark: isDark,
+                            valueColor: _dueDateColor(t.dueDate!),
+                          ),
+                        ],
+                        if (t.numeroSerie != null &&
+                            t.numeroSerie!.isNotEmpty &&
+                            t.numeroSerie != 'UNKNOWN') ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.tag_rounded,
+                            label: l.invoiceNumber,
+                            value: t.numeroSerie!,
+                            isDark: isDark,
+                          ),
+                        ],
+                        if (t.metodoPagamento != null &&
+                            t.metodoPagamento!.isNotEmpty &&
+                            t.metodoPagamento != 'UNKNOWN') ...[
+                          _Separator(isDark: isDark),
+                          _InfoRow(
+                            icon: Icons.payment_rounded,
+                            label: l.payment,
+                            value: t.metodoPagamento!,
+                            isDark: isDark,
+                          ),
+                        ],
                       ],
                     ),
-                  ),
-                );
-              },
+                    const SizedBox(height: AppTokens.sp12),
+
+                    // ── Paid status ─────────────────────────────────────────
+                    if (!isComprovativo && !isTalao)
+                      _InfoCard(
+                        isDark: isDark,
+                        children: [
+                          _PaidRow(
+                              transaction: t, isDark: isDark, l: l),
+                        ],
+                      ),
+
+                    const SizedBox(height: AppTokens.sp12),
+
+                    // ── Attachments ─────────────────────────────────────────
+                    _AttachmentsCard(
+                        transaction: t, isDark: isDark, l: l),
+
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              ),
             ),
-          ),
-          SliverList(
-            delegate: SliverChildListDelegate([
-              const SizedBox(height: 24),
-              // Date
-              _buildInfoTile(
-                AppLocalizations.of(context).date,
-                format.format(widget.transaction.date),
-                Icons.calendar_today,
-              ),
-              // Description
-              _buildInfoTile(
-                AppLocalizations.of(context).description,
-                widget.transaction.description,
-                Icons.description,
-              ),
-              // Month Ref
-              if (widget.transaction.monthRef != null && widget.transaction.monthRef!.isNotEmpty)
-                _buildInfoTile(
-                  AppLocalizations.of(context).referenceMonthYear,
-                  widget.transaction.monthRef!,
-                  Icons.date_range,
-                ),
-              // Due Date
-              if (widget.transaction.dueDate != null)
-                _buildInfoTile(
-                  AppLocalizations.of(context).dueDate,
-                  format.format(widget.transaction.dueDate!),
-                  Icons.event,
-                ),
-              // Paid (escondido para comprovativo e talão)
-              if (!isComprovativo && !isTalao)
-                _buildInfoTile(
-                  AppLocalizations.of(context).paid,
-                  widget.transaction.paid ? "${AppLocalizations.of(context).yes}" : "${AppLocalizations.of(context).no}",
-                  widget.transaction.paid ? Icons.check_circle : Icons.cancel,
-                  trailing: Switch(
-                    value: widget.transaction.paid,
-                    onChanged: null,
-                    activeColor: Colors.green,
-                  ),
-                ),
-              const SizedBox(height: 24),
-              // Anexos
-              _buildAnexosSection(),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoTile(String title, String subtitle, IconData icon, {Widget? trailing}) {
-    return Card(
-      color: Colors.white,  // Branco explícito
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.grey[600]),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text(subtitle),
-        trailing: trailing,  // Sem botão de copy para todas
-      ),
-    );
-  }
-
-  Widget _buildAnexosSection() {
-    if (widget.transaction.receiptPaths.isEmpty) {
-      return Card(
-        color: Colors.white,  // Branco
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        elevation: 1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        child: ListTile(
-          leading:  Icon(Icons.attach_file, color: Colors.grey[600]),
-          title: Text(AppLocalizations.of(context).attachments, style: TextStyle(fontWeight: FontWeight.w500)),
-          subtitle: Text(AppLocalizations.of(context).noAttachments),
+          ],
         ),
-      );
-    }
-
-    return Card(
-      color: Colors.white,  // Branco
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ExpansionTile(
-        leading: Icon(Icons.attach_file, color: Colors.grey[600]),
-        title: Text(AppLocalizations.of(context).attachments, style: TextStyle(fontWeight: FontWeight.w500)),
-        subtitle: Text('${widget.transaction.receiptPaths.length} ${AppLocalizations.of(context).countFiles}'),
-        children: widget.transaction.receiptPaths.map((path) => ListTile(
-          leading: Image.file(
-            File(path),
-            width: 50,
-            height: 50,
-            fit: BoxFit.cover,
-          ),
-          title: Text(path.split('/').last),
-          trailing: IconButton(
-            icon: const Icon(Icons.fullscreen),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ImageViewerScreen(imagePath: path),
-              ),
-            ),
-          ),
-        )).toList(),
       ),
     );
   }
 
-  void _showDeleteDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context).deleteTransaction),
-        content: Text(AppLocalizations.of(context).confirmDeleteTransaction),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context).cancel),
+  Color _dueDateColor(DateTime due) {
+    final d = due.difference(DateTime.now()).inDays;
+    if (d < 0) return AppColors.danger;
+    if (d <= 7) return AppColors.warning;
+    return AppColors.success;
+  }
+}
+
+// ── Info card wrapper ─────────────────────────────────────────────────────────
+class _InfoCard extends StatelessWidget {
+  final bool isDark;
+  final List<Widget> children;
+  const _InfoCard({required this.isDark, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+// ── Single info row ───────────────────────────────────────────────────────────
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool isDark;
+  final Color? valueColor;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isDark,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onLongPress: () {
+        HapticFeedback.lightImpact();
+        Clipboard.setData(ClipboardData(text: value));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Copied'), duration: Duration(seconds: 1)),
+        );
+      },
+      borderRadius: BorderRadius.circular(AppTokens.radius16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.sp16, vertical: AppTokens.sp14),
+        child: Row(children: [
+          Icon(icon,
+              size: 18,
+              color:
+                  isDark ? AppColors.darkSubtext : AppColors.grey400),
+          const SizedBox(width: AppTokens.sp12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.4,
+                      color: isDark
+                          ? AppColors.darkSubtext
+                          : AppColors.grey500,
+                    )),
+                const SizedBox(height: 2),
+                Text(value,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: valueColor ??
+                          (isDark
+                              ? AppColors.darkText
+                              : AppColors.dark),
+                    )),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () async {
-              await DatabaseService().deleteTransaction(widget.transaction.id);
-              Navigator.pop(context);
-              Navigator.pop(context);  // Volta para lista
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(AppLocalizations.of(context).transactionDeleted)),
-              );
-            },
-            child: Text(AppLocalizations.of(context).delete, style: TextStyle(color: Colors.red)),
-          ),
-        ],
+        ]),
       ),
     );
+  }
+}
+
+// ── Thin divider between rows ─────────────────────────────────────────────────
+class _Separator extends StatelessWidget {
+  final bool isDark;
+  const _Separator({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) => Divider(
+        height: 1,
+        indent: AppTokens.sp16 + 18 + AppTokens.sp12,
+        endIndent: AppTokens.sp16,
+        color: isDark ? AppColors.darkBorder : AppColors.grey100,
+      );
+}
+
+// ── Paid status row ───────────────────────────────────────────────────────────
+class _PaidRow extends StatelessWidget {
+  final Transaction transaction;
+  final bool isDark;
+  final AppLocalizations l;
+  const _PaidRow(
+      {required this.transaction,
+      required this.isDark,
+      required this.l});
+
+  @override
+  Widget build(BuildContext context) {
+    final paid  = transaction.paid;
+    final color = paid ? AppColors.success : AppColors.grey400;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.sp16, vertical: AppTokens.sp12),
+      child: Row(children: [
+        Icon(paid ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            size: 18, color: color),
+        const SizedBox(width: AppTokens.sp12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l.paid,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.4,
+                    color: isDark
+                        ? AppColors.darkSubtext
+                        : AppColors.grey500,
+                  )),
+              const SizedBox(height: 2),
+              Text(paid ? l.yes : l.no,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: color,
+                  )),
+            ],
+          ),
+        ),
+        Switch(
+          value: paid,
+          onChanged: null,
+          activeTrackColor: AppColors.success.withAlpha(100),
+          activeThumbColor: AppColors.success,
+        ),
+      ]),
+    );
+  }
+}
+
+// ── Attachments card ──────────────────────────────────────────────────────────
+class _AttachmentsCard extends StatefulWidget {
+  final Transaction transaction;
+  final bool isDark;
+  final AppLocalizations l;
+  const _AttachmentsCard(
+      {required this.transaction,
+      required this.isDark,
+      required this.l});
+
+  @override
+  State<_AttachmentsCard> createState() => _AttachmentsCardState();
+}
+
+class _AttachmentsCardState extends State<_AttachmentsCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final paths  = widget.transaction.receiptPaths;
+    final isDark = widget.isDark;
+    final l      = widget.l;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
+      ),
+      child: paths.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppTokens.sp16, vertical: AppTokens.sp14),
+              child: Row(children: [
+                Icon(Icons.attach_file_rounded,
+                    size: 18,
+                    color: isDark
+                        ? AppColors.darkSubtext
+                        : AppColors.grey400),
+                const SizedBox(width: AppTokens.sp12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l.attachments,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.4,
+                            color: isDark
+                                ? AppColors.darkSubtext
+                                : AppColors.grey500,
+                          )),
+                      const SizedBox(height: 2),
+                      Text(l.noAttachments,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: isDark
+                                ? AppColors.darkSubtext
+                                : AppColors.grey400,
+                          )),
+                    ],
+                  ),
+                ),
+              ]),
+            )
+          : Column(
+              children: [
+                InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(AppTokens.radius16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppTokens.sp16,
+                        vertical: AppTokens.sp14),
+                    child: Row(children: [
+                      Icon(Icons.attach_file_rounded,
+                          size: 18,
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey400),
+                      const SizedBox(width: AppTokens.sp12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(l.attachments,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.4,
+                                  color: isDark
+                                      ? AppColors.darkSubtext
+                                      : AppColors.grey500,
+                                )),
+                            const SizedBox(height: 2),
+                            Text(
+                                '${paths.length} ${l.countFiles}',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
+                                  color: isDark
+                                      ? AppColors.darkText
+                                      : AppColors.dark,
+                                )),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        color: isDark
+                            ? AppColors.darkSubtext
+                            : AppColors.grey400,
+                      ),
+                    ]),
+                  ),
+                ),
+                AnimatedSize(
+                  duration: AppTokens.normal,
+                  curve: Curves.easeInOut,
+                  child: _expanded
+                      ? Column(
+                          children: paths.map((path) => _AttachmentTile(
+                                path: path,
+                                isDark: isDark,
+                              )).toList(),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+// ── Single attachment tile ────────────────────────────────────────────────────
+class _AttachmentTile extends StatelessWidget {
+  final String path;
+  final bool isDark;
+  const _AttachmentTile({required this.path, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Divider(
+          height: 1,
+          indent: AppTokens.sp16,
+          endIndent: AppTokens.sp16,
+          color: isDark ? AppColors.darkBorder : AppColors.grey100),
+      InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => ImageViewerScreen(imagePath: path)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.sp16, vertical: AppTokens.sp10),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.radius8),
+              child: Image.file(
+                File(path),
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: 48,
+                  height: 48,
+                  color: isDark
+                      ? AppColors.darkBorder
+                      : AppColors.grey200,
+                  child: Icon(Icons.broken_image_rounded,
+                      size: 24,
+                      color: isDark
+                          ? AppColors.darkSubtext
+                          : AppColors.grey400),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppTokens.sp12),
+            Expanded(
+              child: Text(
+                path.split(Platform.pathSeparator).last,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color:
+                      isDark ? AppColors.darkText : AppColors.dark,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: AppTokens.sp8),
+            Icon(Icons.open_in_new_rounded,
+                size: 18,
+                color: isDark
+                    ? AppColors.darkSubtext
+                    : AppColors.grey400),
+          ]),
+        ),
+      ),
+    ]);
   }
 }

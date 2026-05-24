@@ -54,6 +54,8 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Financial Resume',
             theme: appTheme,
+            darkTheme: appDarkTheme,
+            themeMode: ThemeMode.system,
             locale: languageProvider.locale,
             localizationsDelegates: const [
               AppLocalizations.delegate,
