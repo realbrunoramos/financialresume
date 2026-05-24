@@ -10,6 +10,8 @@ import '../models/transaction.dart';
 import '../providers/transaction_provider.dart';
 import '../services/database_service.dart';
 import '../services/file_service.dart';
+import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 import './image_viewer_screen.dart';
 import './scan_file_screen.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +20,10 @@ class TransactionFormScreen extends StatefulWidget {
   final Transaction? transaction;
   final String sectionId;
 
-  TransactionFormScreen({this.transaction, required this.sectionId});
+  const TransactionFormScreen({super.key, this.transaction, required this.sectionId});
 
   @override
-  _TransactionFormScreenState createState() => _TransactionFormScreenState();
+  State<TransactionFormScreen> createState() => _TransactionFormScreenState();
 }
 
 class _TransactionFormScreenState extends State<TransactionFormScreen> {
@@ -824,16 +826,25 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: Color.fromARGB(250, 250, 250, 250),
+      backgroundColor:
+          isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
       appBar: AppBar(
-        backgroundColor: Color.fromARGB(210, 240, 240, 240),
-        title: Text(widget.transaction == null ? AppLocalizations.of(context).newTransaction : AppLocalizations.of(context).editTransaction),
+        backgroundColor:
+            isDark ? AppColors.darkSurface : AppColors.white,
+        foregroundColor: isDark ? AppColors.darkText : AppColors.dark,
+        elevation: 0,
+        title: Text(
+          widget.transaction == null ? l.newTransaction : l.editTransaction,
+          style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.email),
+            icon: const Icon(Icons.email_rounded),
             onPressed: _handleEmailSend,
-            tooltip: AppLocalizations.of(context).send,
+            tooltip: l.send,
           ),
         ],
       ),
@@ -846,50 +857,50 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
               children: [
 
                 Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppTokens.sp12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    color: isDark ? AppColors.darkCard : AppColors.white,
+                    borderRadius: BorderRadius.circular(AppTokens.radius16),
+                    border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.grey100),
+                    boxShadow: isDark ? null : AppTokens.shadowSm,
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Expanded(
-                        child: Container(
-                          height: 110,
+                        child: SizedBox(
+                          height: 100,
                           child: _buildDocTypeButton(
-                            icon: Icons.qr_code,
-                            label: AppLocalizations.of(context).receipt,
+                            icon: Icons.qr_code_rounded,
+                            label: l.receipt,
                             docType: '1',
+                            isDark: isDark,
                           ),
                         ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: AppTokens.sp8),
                       Expanded(
-                        child: Container(
-                          height: 110,
+                        child: SizedBox(
+                          height: 100,
                           child: _buildDocTypeButton(
                             icon: Icons.insert_chart_rounded,
-                            label: AppLocalizations.of(context).chargeNote,
+                            label: l.chargeNote,
                             docType: '2',
+                            isDark: isDark,
                           ),
                         ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: AppTokens.sp8),
                       Expanded(
-                        child: Container(
-                          height: 110,
+                        child: SizedBox(
+                          height: 100,
                           child: _buildDocTypeButton(
-                            icon: Icons.paid,
-                            label: AppLocalizations.of(context).proof,
+                            icon: Icons.paid_rounded,
+                            label: l.proof,
                             docType: '3',
+                            isDark: isDark,
                           ),
                         ),
                       ),
@@ -897,20 +908,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   ),
                 ),
 
-                SizedBox(height: 24),
+                const SizedBox(height: AppTokens.sp16),
 
                 Container(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(AppTokens.sp20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    color: isDark ? AppColors.darkCard : AppColors.white,
+                    borderRadius: BorderRadius.circular(AppTokens.radius16),
+                    border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.grey100),
+                    boxShadow: isDark ? null : AppTokens.shadowSm,
                   ),
                   child: Column(
                     children: [
@@ -999,48 +1008,48 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
 
                       if (_showDueDate) ...[
-                        SizedBox(height: 16),
+                        const SizedBox(height: AppTokens.sp16),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.grey200),
+                            borderRadius:
+                                BorderRadius.circular(AppTokens.radius12),
                           ),
                           child: SwitchListTile(
-                            title: Text(
-                              AppLocalizations.of(context).paid,
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            title: Text(l.paid,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
                             value: _paidToggle ?? false,
-                            onChanged: (value) {
-                              setState(() {
-                                _paidToggle = value;
-                              });
-                            },
+                            activeThumbColor: AppColors.success,
+                            onChanged: (v) =>
+                                setState(() => _paidToggle = v),
                           ),
                         ),
                       ],
 
-                      if(_selectedDocType == '3') ...[
-                        SizedBox(height: 16),
+                      if (_selectedDocType == '3') ...[
+                        const SizedBox(height: AppTokens.sp16),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey[300]!),
-                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.grey200),
+                            borderRadius:
+                                BorderRadius.circular(AppTokens.radius12),
                           ),
                           child: SwitchListTile(
-                            title: Text(
-                              AppLocalizations.of(context).isCredit,
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Text(_isCreditToggle ? AppLocalizations.of(context).yes : AppLocalizations.of(context).no),
+                            title: Text(l.isCredit,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: Text(_isCreditToggle ? l.yes : l.no),
                             value: _isCreditToggle,
-                            onChanged: (value) {
-                              setState(() {
-                                _isCreditToggle = value;
-                              });
-                            },
+                            activeThumbColor: AppColors.success,
+                            onChanged: (v) =>
+                                setState(() => _isCreditToggle = v),
                           ),
                         ),
                       ],
@@ -1048,148 +1057,178 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                   ),
                 ),
 
-                SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: _scanDocument,
-                  icon: Icon(Icons.document_scanner),
-                  label: Text(AppLocalizations.of(context).scanDocument),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
+                const SizedBox(height: AppTokens.sp16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _scanDocument,
+                    icon: const Icon(Icons.document_scanner_rounded),
+                    label: Text(l.scanDocument),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: AppTokens.sp14),
+                      side: BorderSide(
+                          color: isDark
+                              ? AppColors.darkBorder
+                              : AppColors.grey300),
+                    ),
                   ),
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: AppTokens.sp16),
 
-
+                // Attachments
                 Container(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(AppTokens.sp16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
+                    color: isDark ? AppColors.darkCard : AppColors.white,
+                    borderRadius: BorderRadius.circular(AppTokens.radius16),
+                    border: Border.all(
+                        color: isDark
+                            ? AppColors.darkBorder
+                            : AppColors.grey100),
+                    boxShadow: isDark ? null : AppTokens.shadowSm,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
-                      Text(
-                        AppLocalizations.of(context).attachments,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      _receiptPaths.isEmpty
-                          ?
-                      Container(
-                        alignment: Alignment.center,
-                        height: 100,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.file_present_sharp,
-                                size: 50,
-                                color: Colors.grey[400]),
-                            SizedBox(height: 8),
-                            Text(
-                              AppLocalizations.of(context).noAttachmentsAdded,
-                              style: TextStyle(color: Colors.grey[600]),
+                      Row(children: [
+                        Icon(Icons.attach_file_rounded,
+                            size: 18,
+                            color: isDark
+                                ? AppColors.darkSubtext
+                                : AppColors.grey500),
+                        const SizedBox(width: AppTokens.sp8),
+                        Text(l.attachments,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? AppColors.darkText
+                                  : AppColors.dark,
+                            )),
+                        if (_receiptPaths.isNotEmpty) ...[
+                          const SizedBox(width: AppTokens.sp8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withAlpha(isDark ? 40 : 20),
+                              borderRadius: BorderRadius.circular(
+                                  AppTokens.radiusFull),
                             ),
-                          ],
-                        ),
-                      )
-                          :
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: _receiptPaths.map((path) {
-                          return Stack(
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey[300]!),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: GestureDetector(
-                                  onTap: () => _viewImage(path),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: Image.file(
-                                      File(path),
-                                      width: 100,
-                                      height: 100,
-                                      fit: BoxFit.cover,
+                            child: Text('${_receiptPaths.length}',
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.info)),
+                          ),
+                        ],
+                      ]),
+                      const SizedBox(height: AppTokens.sp12),
+                      _receiptPaths.isEmpty
+                          ? Container(
+                              alignment: Alignment.center,
+                              height: 80,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.file_present_outlined,
+                                      size: 36,
+                                      color: isDark
+                                          ? AppColors.darkSubtext
+                                          : AppColors.grey300),
+                                  const SizedBox(height: AppTokens.sp6),
+                                  Text(l.noAttachmentsAdded,
+                                      style: TextStyle(
+                                          color: isDark
+                                              ? AppColors.darkSubtext
+                                              : AppColors.grey400,
+                                          fontSize: 13)),
+                                ],
+                              ),
+                            )
+                          : Wrap(
+                              spacing: AppTokens.sp10,
+                              runSpacing: AppTokens.sp10,
+                              children: _receiptPaths.map((path) {
+                                return Stack(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => _viewImage(path),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(
+                                            AppTokens.radius12),
+                                        child: Image.file(
+                                          File(path),
+                                          width: 90,
+                                          height: 90,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 4,
-                                right: 4,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(Icons.close,
-                                        size: 16,
-                                        color: Colors.white),
-                                    onPressed: () {
-                                      setState(() {
-                                        _receiptPaths.remove(path);
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                bottom: 4,
-                                left: 4,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.black54,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: IconButton(
-                                    icon: Icon(Icons.download,
-                                        size: 16,
-                                        color: Colors.white),
-                                    onPressed: () => _downloadImage(path),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
-                      ),
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: GestureDetector(
+                                        onTap: () => setState(
+                                            () => _receiptPaths.remove(path)),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                              Icons.close_rounded,
+                                              size: 14,
+                                              color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      bottom: 4,
+                                      left: 4,
+                                      child: GestureDetector(
+                                        onTap: () => _downloadImage(path),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: const BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                              Icons.download_rounded,
+                                              size: 14,
+                                              color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
                     ],
                   ),
                 ),
 
-                SizedBox(height: 24),
+                const SizedBox(height: AppTokens.sp24),
 
-                ElevatedButton(
-                  onPressed: () => _saveTransaction(_idInvoiceRef, _selectedDate),
-                  child: Text(
-                    AppLocalizations.of(context).saveTransaction,
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
-                    minimumSize: Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () =>
+                        _saveTransaction(_idInvoiceRef, _selectedDate),
+                    style: FilledButton.styleFrom(
+                      backgroundColor:
+                          isDark ? AppColors.info : AppColors.dark,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: AppTokens.sp16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(AppTokens.radius12)),
                     ),
+                    child: Text(l.saveTransaction,
+                        style: const TextStyle(fontSize: 16)),
                   ),
                 ),
               ],
@@ -1204,63 +1243,69 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     required IconData icon,
     required String label,
     required String docType,
+    required bool isDark,
   }) {
     final isSelected = _selectedDocType == docType;
-    return Container(
-      height: 100,
-      child: GestureDetector(
+    final selectedBg = isDark ? AppColors.info : AppColors.dark;
+    final unselectedBorder =
+        isDark ? AppColors.darkBorder : AppColors.grey200;
+    final unselectedIcon =
+        isDark ? AppColors.darkSubtext : AppColors.grey500;
+    final unselectedText =
+        isDark ? AppColors.darkText : AppColors.dark;
+
+    return GestureDetector(
         onTap: () {
           setState(() {
             _selectedDocType = docType;
-            _showDueDate = (docType == '2');
-            _showMonthRef = (docType == '2' || docType == '3');
-            _paidToggle = (docType == '2') ? false : null;
+            _showDueDate   = (docType == '2');
+            _showMonthRef  = (docType == '2' || docType == '3');
+            _paidToggle    = (docType == '2') ? false : null;
           });
         },
-        child: Container(
-          margin: EdgeInsets.symmetric(horizontal: 4),
-          padding: EdgeInsets.all(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: AppTokens.sp4),
+          padding: const EdgeInsets.all(AppTokens.sp12),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.black : Colors.transparent,
+            color: isSelected ? selectedBg : Colors.transparent,
             border: Border.all(
-              color: isSelected ? Colors.black : Colors.grey[300]!,
-              width: 2,
+              color: isSelected ? selectedBg : unselectedBorder,
+              width: isSelected ? 2 : 1.5,
             ),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppTokens.radius12),
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.max,
             children: [
               Icon(
                 icon,
-                size: 32,
-                color: isSelected ? Colors.white : Colors.grey[700],
+                size: 28,
+                color: isSelected ? AppColors.white : unselectedIcon,
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: AppTokens.sp8),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 9,
-                  fontWeight: FontWeight.w500,
-                  color: isSelected ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? AppColors.white : unselectedText,
                 ),
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: AppTokens.sp4),
               AnimatedContainer(
-                duration: Duration(milliseconds: 200),
+                duration: const Duration(milliseconds: 200),
                 height: 3,
                 width: isSelected ? 20 : 0,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.white,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
