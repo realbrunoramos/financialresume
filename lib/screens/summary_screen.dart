@@ -262,7 +262,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     return value.toStringAsFixed(2);
   }
 
-  Map<String, Map<String, dynamic>> _prepareMonthlyTablesData(List<Transaction> transactions) {
+  Map<String, Map<String, dynamic>> _prepareMonthlyTablesData(
+      List<Transaction> transactions, String monthLocale) {
     final monthlyTransactions = _groupTransactionsByMonth(transactions);
     final Map<String, Map<String, dynamic>> monthlyData = {};
 
@@ -285,7 +286,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
         );
       }).toList();
 
-      final reversedTransactions = transactionsWithBalance.toList().reversed.toList();
+      final reversedTransactions =
+          transactionsWithBalance.toList().reversed.toList();
 
       final monthIncome = monthTransactions
           .where((t) => t.isCredit)
@@ -298,7 +300,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final monthBalance = monthIncome - monthExpenses;
 
       final monthDate = DateFormat('yyyy-MM').parse(monthKey);
-      final monthName = DateFormat('MMMM yyyy', AppLocalizations.of(context).monthName).format(monthDate);
+      // Use pre-captured monthLocale instead of AppLocalizations.of(context)
+      final monthName =
+          DateFormat('MMMM yyyy', monthLocale).format(monthDate);
 
       monthlyData[monthKey] = {
         'monthName': monthName,
@@ -338,7 +342,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           final ano = int.parse(parts[1]);
           final dataRef = DateTime(ano, mes);
           final mesExtenso = DateFormat('MMMM', 'pt_PT').format(dataRef);
-          partes.add('Ref: ${mesExtenso} de $ano');
+          partes.add('Ref: $mesExtenso de $ano');
         }
       } catch (e) {
         partes.add('Ref: ${transaction.monthRef}');
@@ -679,15 +683,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
-  Future<void> _exportToPdf(BuildContext context) async {
+  Future<void> _exportToPdf() async {
     if (_isExporting || !_canExport()) return;
 
     setState(() {
       _isExporting = true;
     });
 
+    // Capture ALL context-dependent values BEFORE any await / try block
+    final loc               = AppLocalizations.of(context);
+    final noTransactionMsg  = loc.noTransactionsSelectedForExport;
+    final exportedPdfMsg    = loc.exportedPdf;
+    final errorOpeningMsg   = loc.errorOpeningPdfFileSavedIn;
+    final errorGeneratingMsg = loc.errorGeneratingPdf;
+    final monthLocale       = loc.monthName;
+
     try {
-      final loc = AppLocalizations.of(context);
+
       final pdf = pw.Document();
       final filteredTransactions = _getFilteredTransactions();
       final format = DateFormat('dd/MM/yyyy');
@@ -696,7 +708,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
       if (filteredTransactions.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(AppLocalizations.of(context).noTransactionsSelectedForExport),
+            content: Text(noTransactionMsg),
             backgroundColor: AppColors.red,
           ),
         );
@@ -725,7 +737,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
       final ByteData appImageBytes = await rootBundle.load('assets/images/app_logo.png');
       final Uint8List appImageData = appImageBytes.buffer.asUint8List();
 
-      final monthlyData = _prepareMonthlyTablesData(filteredTransactions);
+      final monthlyData =
+          _prepareMonthlyTablesData(filteredTransactions, monthLocale);
 
       // Página de resumo
       pdf.addPage(
@@ -1152,30 +1165,34 @@ class _SummaryScreenState extends State<SummaryScreen> {
       });
 
       final output = await getTemporaryDirectory();
-      final fileName = 'financial_resume_${DateFormat('yyyy_MM').format(now)}.pdf';
+      final fileName =
+          'financial_resume_${DateFormat('yyyy_MM').format(now)}.pdf';
       final file = File('${output.path}/$fileName');
       await file.writeAsBytes(await pdf.save());
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).exportedPdf),
+          content: Text(exportedPdfMsg),
           backgroundColor: AppColors.green,
         ),
       );
 
       final openResult = await OpenFile.open(file.path);
       if (openResult.type != ResultType.done) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${AppLocalizations.of(context).errorOpeningPdfFileSavedIn} ${file.path}'),
+            content: Text('$errorOpeningMsg ${file.path}'),
             backgroundColor: AppColors.red,
           ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${AppLocalizations.of(context).errorGeneratingPdf} $e'),
+          content: Text('$errorGeneratingMsg $e'),
           backgroundColor: AppColors.red,
         ),
       );
@@ -1440,7 +1457,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                           : AppColors.white),
               onPressed: _isExporting || _selectedMonths.isEmpty
                   ? null
-                  : () => _exportToPdf(context),
+                  : _exportToPdf,
               tooltip: _selectedMonths.isEmpty
                   ? l.selectMonthsToExport
                   : l.exportToPdf,

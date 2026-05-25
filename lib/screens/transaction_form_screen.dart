@@ -49,8 +49,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   String? _idInvoiceRef;
   String? _numSerie;
   String? _paymentMethod;
-  String _smtpServer = 'smtp.gmail.com';
-  String _port = '587';
 
   @override
   void initState() {
@@ -89,10 +87,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final creds = await SecureStorageService.readEmailCredentials();
     if (mounted) {
       setState(() {
-        _email      = creds.email;
-        _password   = creds.password;
-        _smtpServer = creds.smtpServer ?? 'smtp.gmail.com';
-        _port       = creds.smtpPort   ?? '587';
+        _email    = creds.email;
+        _password = creds.password;
       });
     }
   }
@@ -215,8 +211,14 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   Future<String?> _showInvoiceSelectionDialog(String idsRef) async {
-    final List<String> ids = idsRef.split(',').where((id) => id.isNotEmpty).toList();
+    final List<String> ids =
+        idsRef.split(',').where((id) => id.isNotEmpty).toList();
     if (ids.isEmpty) return null;
+
+    // Capture context values BEFORE the await loop
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     List<Transaction> invoices = [];
     for (final id in ids) {
       final invoice = await _dbService.getTransactionById(id);
@@ -226,9 +228,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     }
 
     if (invoices.isEmpty) return null;
-
-    final l      = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (!mounted) return null;
 
     return showModalBottomSheet<String>(
       context: context,
@@ -400,19 +400,22 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     final bodyCtrl = TextEditingController();
     bool isGenerating = false;
 
+    // Capture context values BEFORE the potential await below
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (_aiAnalysis != null) {
       final entidade = _aiAnalysis!['entidade'] as String? ?? '';
       if (entidade.isNotEmpty) {
-        final prevEmails = await _dbService.getPreviousEmailsForEntity(entidade);
+        final prevEmails =
+            await _dbService.getPreviousEmailsForEntity(entidade);
         if (prevEmails.isNotEmpty) {
           recipientCtrl.text = prevEmails.first['recipient'] as String;
         }
       }
     }
 
-    final l      = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (!mounted) return;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -590,22 +593,29 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     );
   }
 
-  Future<void> _generateEmailContent(TextEditingController subjectCtrl, TextEditingController bodyCtrl) async {
+  Future<void> _generateEmailContent(TextEditingController subjectCtrl,
+      TextEditingController bodyCtrl) async {
+    // Capture context-dependent values BEFORE any await
+    final noAnalysisMsg  =
+        AppLocalizations.of(context).aiAnalysisNotAvailableScanDocumentFirst;
+    final promptLang     = AppLocalizations.of(context).promptLanguage;
+    final aiGenErrorMsg  = AppLocalizations.of(context).aiGenerationError;
+
     if (_aiAnalysis == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context).aiAnalysisNotAvailableScanDocumentFirst)),
+        SnackBar(content: Text(noAnalysisMsg)),
       );
       return;
     }
 
-    final entidade = _aiAnalysis!['entidade'] as String? ?? _entityController.text;
-    final descricao = _aiAnalysis!['descrição'] as String? ?? _descriptionController.text;
-    final mesAnoRef = _aiAnalysis!['mes_ano_ref'] as String? ?? _monthRefController.text;
+    final entidade   = _aiAnalysis!['entidade']   as String? ?? _entityController.text;
+    final descricao  = _aiAnalysis!['descrição']  as String? ?? _descriptionController.text;
+    final mesAnoRef  = _aiAnalysis!['mes_ano_ref'] as String? ?? _monthRefController.text;
     final valorTotal = _aiAnalysis!['valor_total'] as String? ?? _amountController.text;
     final currentMonth = DateFormat('MMMM yyyy', 'pt').format(_selectedDate);
 
-
-    final previousEmails = await _dbService.getPreviousEmailsForEntity(entidade);
+    final previousEmails =
+        await _dbService.getPreviousEmailsForEntity(entidade);
     String previousStr = '';
     if (previousEmails.isNotEmpty) {
 
@@ -633,7 +643,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     Responda APENAS com um objeto JSON de linha única:
     {"subject": "assunto gerado", "body": "corpo gerado"}
     Sem texto adicional.
-    (Atenção: o output deve ser no idioma: ${AppLocalizations.of(context).promptLanguage})    
+    (Atenção: o output deve ser no idioma: $promptLang)
     """;
 
     try {
@@ -682,23 +692,21 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).aiGenerationError} $e')),
+          SnackBar(content: Text('$aiGenErrorMsg $e')),
         );
       }
     }
   }
 
-  Future<void> _sendEmail({required String recipient, required String subject, required String body}) async {
-    try {
-      /*final smtpServer = SmtpServer(
-        _smtpServer,
-        port: int.parse(_port),
-        username: _email,
-        password: _password,
-        ssl: false,
-        ignoreBadCertificate: true,
-      );*/
+  Future<void> _sendEmail(
+      {required String recipient,
+      required String subject,
+      required String body}) async {
+    // Capture context values BEFORE the await
+    final successMsg = AppLocalizations.of(context).emailSentSuccessfully;
+    final errorMsg   = AppLocalizations.of(context).errorSendingEmail;
 
+    try {
       final message = Message()
         ..from = Address(_email!, 'Financial Resume App')
         ..recipients.add(recipient)
@@ -709,35 +717,34 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         message.attachments.add(FileAttachment(File(_receiptPaths.first)));
       }
 
-
-      final entity = _aiAnalysis?['entidade'] as String? ?? _entityController.text;
+      final entity       = _aiAnalysis?['entidade'] as String? ?? _entityController.text;
       final emissionDate = DateFormat('dd/MM/yyyy').format(_selectedDate);
       await _dbService.addSentEmail({
-        'entity': entity,
-        'recipient': recipient,
-        'subject': subject,
-        'body': body,
-        'sentAt': DateTime.now().toIso8601String(),
+        'entity':        entity,
+        'recipient':     recipient,
+        'subject':       subject,
+        'body':          body,
+        'sentAt':        DateTime.now().toIso8601String(),
         'emission_date': emissionDate,
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).emailSentSuccessfully)),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(successMsg)),
+      );
     } on MailerException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorSendingEmail} ${e.problems.map((p) => '${p.code}: ${p.msg}').join(', ')}')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '$errorMsg ${e.problems.map((p) => '${p.code}: ${p.msg}').join(', ')}'),
+        ),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorSendingEmail}: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$errorMsg: $e')),
+      );
     }
   }
 
@@ -797,8 +804,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 int.parse(parts[0]),
               );
               _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
-            } catch (e) {
-
+            } catch (_) {
+              // Silently ignore malformed date string from AI analysis
             }
           }
           _showDueDate = (tipo == 2);
@@ -813,7 +820,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 int.parse(parts[0]),
               );
               _dueDateController.text = DateFormat('dd/MM/yyyy').format(_selectedDueDate);
-            } catch (e) {
+            } catch (_) {
+              // Silently ignore malformed due-date string from AI analysis
             }
           }
           if (mesAnoRef != 'UNKNOWN' && _showMonthRef) {
@@ -874,8 +882,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
   Future<void> _downloadImage(String path) async {
     await _fileService.downloadImage(path);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Imagem baixada com sucesso!')),
+      const SnackBar(content: Text('Imagem baixada com sucesso!')),
     );
   }
 
@@ -890,12 +899,18 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
   void _saveTransaction(String? idInvoiceRef, DateTime date) async {
     if (_formKey.currentState!.validate()) {
-      if (_selectedDocType == '3' && idInvoiceRef != null && idInvoiceRef != 'UNKNOWN') {
+      if (_selectedDocType == '3' &&
+          idInvoiceRef != null &&
+          idInvoiceRef != 'UNKNOWN') {
         _mergeWithInvoice(idInvoiceRef, date);
         return;
       }
 
-      final bool isPaid = _selectedDocType == '2' ? (_paidToggle ?? false) : false;
+      final bool isPaid =
+          _selectedDocType == '2' ? (_paidToggle ?? false) : false;
+
+      // Capture context-dependent value BEFORE the await
+      final errorMsg = AppLocalizations.of(context).errorSavingTransaction;
 
       final transaction = Transaction(
         id: widget.transaction?.id ?? DateTime.now().toString(),
@@ -907,7 +922,9 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         receiptPaths: _receiptPaths,
         sectionId: widget.sectionId,
         docType: _selectedDocType,
-        monthRef: _monthRefController.text.isNotEmpty ? _monthRefController.text : null,
+        monthRef: _monthRefController.text.isNotEmpty
+            ? _monthRefController.text
+            : null,
         dueDate: _showDueDate ? _selectedDueDate : null,
         paid: isPaid,
         numeroSerie: _numSerie,
@@ -915,55 +932,62 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       );
 
       try {
-        //final transactionProvider = context.read<TransactionProvider>();
-
         if (widget.transaction == null) {
           await _dbService.addTransaction(transaction);
         } else {
           await _dbService.updateTransaction(transaction);
         }
 
+        if (!mounted) return;
         Navigator.pop(context, true);
       } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorSavingTransaction} $e')),
+          SnackBar(content: Text('$errorMsg $e')),
         );
       }
     }
   }
 
   Future<void> _mergeWithInvoice(String idInvoiceRef, DateTime date) async {
+    // Capture context-dependent values BEFORE any await
+    final paidMsg  = AppLocalizations.of(context).invoiceMarkedPaidWithProof;
+    final mergeErr = AppLocalizations.of(context).mergeError;
+
     try {
       final invoice = await _dbService.getTransactionById(idInvoiceRef);
       if (invoice != null) {
         final mergedPaths = [..._receiptPaths, ...invoice.receiptPaths];
 
         final updatedInvoice = Transaction(
-          id: invoice.id,
-          amount: invoice.amount,
-          entity: invoice.entity,
-          description: invoice.description,
-          isCredit: invoice.isCredit,
-          date: date,
+          id:           invoice.id,
+          amount:       invoice.amount,
+          entity:       invoice.entity,
+          description:  invoice.description,
+          isCredit:     invoice.isCredit,
+          date:         date,
           receiptPaths: mergedPaths,
-          sectionId: invoice.sectionId,
-          docType: invoice.docType,
-          monthRef: invoice.monthRef,
-          dueDate: invoice.dueDate,
-          paid: true,
+          sectionId:    invoice.sectionId,
+          docType:      invoice.docType,
+          monthRef:     invoice.monthRef,
+          dueDate:      invoice.dueDate,
+          paid:         true,
         );
 
         await _dbService.updateTransaction(updatedInvoice);
 
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AppLocalizations.of(context).invoiceMarkedPaidWithProof)),
+          SnackBar(content: Text(paidMsg)),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${AppLocalizations.of(context).mergeError} $e')),
+        SnackBar(content: Text('$mergeErr $e')),
       );
     }
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -1078,7 +1102,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                       TextFormField(
                         controller: _amountController,
                         decoration: InputDecoration(
-                          labelText: '${AppLocalizations.of(context).valueEuro}',
+                          labelText: AppLocalizations.of(context).valueEuro,
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.numberWithOptions(decimal: true),

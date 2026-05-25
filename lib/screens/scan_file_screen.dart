@@ -28,7 +28,7 @@ class TextBasedDocumentImageProcessor {
   RecognizedText? _recognizedText;
   List<TextBlock> textGroup = [];
 
-  Map<String, dynamic> _lightAnalysis = {};
+  final Map<String, dynamic> _lightAnalysis = {};
 
   TextBasedDocumentImageProcessor(this._imageFile);
 
@@ -51,9 +51,7 @@ class TextBasedDocumentImageProcessor {
         modifiedImage = originalImage;
       } else {
         modifiedImage = await rotateImage(originalImage!, angle);
-        if (modifiedImage == null) {
-          modifiedImage = originalImage;
-        }
+        modifiedImage ??= originalImage;
       }
 
       if (angle != null && angle != 0.0) {
@@ -427,7 +425,7 @@ class TextBasedDocumentImageProcessor {
 }
 
 class ScanFileScreen extends StatefulWidget {
-  final sectionId;
+  final String sectionId;
   const ScanFileScreen({super.key, required this.sectionId});
 
   @override
@@ -453,7 +451,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   bool _showFilterOptions = false;
 
   List<String> _filterOptions = [];
-  List<String> _allScannedImages = [];
+  final List<String> _allScannedImages = [];
   Map<String, dynamic>? _primaryAiAnalysis;
 
   @override
@@ -896,6 +894,10 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   }
 
   Future<void> _analyzeWithAI() async {
+    // Capture context-dependent values BEFORE any await
+    final promptLang    = AppLocalizations.of(context).promptLanguage;
+    final errorAiLabel  = AppLocalizations.of(context).errorAiAnalysis;
+
     StringBuffer invoicesString = StringBuffer();
     List<Transaction> invoices = await dbService.getNoPaidInvoices(widget.sectionId);
 
@@ -984,7 +986,7 @@ alguma fatura que tenha a mesma referência de mês e ano (monthRef/mes_ano_ref)
 apenas o id dessa fatura. Se as faturas apenas tiverem entidade e/ou valor condizente, adiciona o id dessa(s) fatura(s). 
 Aqui estão as faturas reais para analizar:
 ${invoicesString.toString()}
-(Atenção: o output deve ser no idioma: ${AppLocalizations.of(context).promptLanguage})
+(Atenção: o output deve ser no idioma: $promptLang)
 
 ### Exemplos de saída válida:
 {"tipo_documento":1,"entidade":"Continente","data_emissao":"05 10 2025","valor_total":"23.45","descrição":"Compras para a casa","numero_serie":"UNKNOWN","metodo_pagamento":"UNKNOWN"}
@@ -1029,7 +1031,7 @@ ${invoicesString.toString()}
         throw Exception('Falha na API: ${response.statusCode}');
       }
     } catch (e) {
-      print('${AppLocalizations.of(context).errorAiAnalysis} $e');
+      debugPrint('$errorAiLabel $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

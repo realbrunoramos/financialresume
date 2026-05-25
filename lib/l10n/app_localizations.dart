@@ -13,7 +13,7 @@ class AppLocalizations {
 
   static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
-  static Map<String, Map<String, String>> _localizedValues = {
+  static final Map<String, Map<String, String>> _localizedValues = {
     'en': {
       "yourCompleteSolution": "Your complete solution for personal financial management",
       "mainFeatures": "Main Features",

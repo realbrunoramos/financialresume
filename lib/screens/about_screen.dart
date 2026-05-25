@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -15,9 +16,10 @@ class _AboutScreenState extends State<AboutScreen> {
   PackageInfo _packageInfo = PackageInfo(
     appName: 'Financial Resume',
     packageName: 'Financial Resume',
-    version: "2.0.2",
+    version: '2.0.2',
     buildNumber: '1',
   );
+
   @override
   void initState() {
     super.initState();
@@ -33,41 +35,41 @@ class _AboutScreenState extends State<AboutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l = AppLocalizations.of(context);
+
     return Scaffold(
-      backgroundColor: AppColors.light,
+      backgroundColor:
+          isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
       appBar: AppBar(
-        title: Text(
-          AppLocalizations.of(context).about,
-          style: TextStyle(
-            color: AppColors.dark,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: AppColors.white,
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.white,
+        foregroundColor: isDark ? AppColors.darkText : AppColors.dark,
         elevation: 0,
-        iconTheme: IconThemeData(color: AppColors.dark),
+        title: Text(
+          l.about,
+          style: const TextStyle(
+              fontWeight: FontWeight.w700, letterSpacing: -0.3),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppTokens.sp16),
         child: Column(
           children: [
+            // ── Hero card ───────────────────────────────────────────────
             Container(
               width: double.infinity,
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(AppTokens.sp24),
               decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.black.withAlpha(50),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+                color: isDark ? AppColors.darkCard : AppColors.white,
+                borderRadius: BorderRadius.circular(AppTokens.radius16),
+                border: Border.all(
+                    color:
+                        isDark ? AppColors.darkBorder : AppColors.grey100),
+                boxShadow: isDark ? null : AppTokens.shadowMd,
               ),
               child: Column(
                 children: [
-                  Container(
+                  SizedBox(
                     height: 80,
                     width: 80,
                     child: SvgPicture.asset(
@@ -75,113 +77,115 @@ class _AboutScreenState extends State<AboutScreen> {
                       fit: BoxFit.contain,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: AppTokens.sp16),
                   Text(
                     'Financial Resume',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.dark,
+                      color: isDark ? AppColors.darkText : AppColors.dark,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: AppTokens.sp8),
                   Text(
-                    '${AppLocalizations.of(context).version} ${_packageInfo.version}',
+                    '${l.version} ${_packageInfo.version}',
                     style: TextStyle(
-                      color: AppColors.grey,
+                      color: isDark
+                          ? AppColors.darkSubtext
+                          : AppColors.grey500,
                       fontSize: 14,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: AppTokens.sp16),
                   Text(
-                    AppLocalizations.of(context).yourCompleteSolution,
+                    l.yourCompleteSolution,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: AppColors.grey,
+                      color: isDark
+                          ? AppColors.darkSubtext
+                          : AppColors.grey500,
                       fontSize: 16,
                     ),
                   ),
                 ],
               ),
             ),
-            SizedBox(height: 16),
-            _buildFeaturesSection(context),
-            SizedBox(height: 16),
-            _buildTechnicalInfo(context),
-            SizedBox(height: 16),
-            _buildDeveloperInfo(context),
-            SizedBox(height: 24),
-            _buildFooter(context),
+            const SizedBox(height: AppTokens.sp16),
+            _buildFeaturesSection(isDark, l),
+            const SizedBox(height: AppTokens.sp16),
+            _buildTechnicalInfo(isDark, l),
+            const SizedBox(height: AppTokens.sp16),
+            _buildDeveloperInfo(isDark, l),
+            const SizedBox(height: AppTokens.sp24),
+            _buildFooter(isDark, l),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFeaturesSection(BuildContext context) {
+  // ── Features section ──────────────────────────────────────────────────────
+  Widget _buildFeaturesSection(bool isDark, AppLocalizations l) {
     final features = [
-      {
-        'icon': Icons.camera_alt,
-        'title': AppLocalizations.of(context).smartScanning,
-        'desc': AppLocalizations.of(context).smartScanningDesc,
-      },
-      {
-        'icon': Icons.analytics,
-        'title': AppLocalizations.of(context).detailedReports,
-        'desc': AppLocalizations.of(context).detailedReportsDesc,
-      },
-      {
-        'icon': Icons.notifications,
-        'title': AppLocalizations.of(context).automaticReminders,
-        'desc': AppLocalizations.of(context).automaticRemindersDesc,
-      },
-      {
-        'icon': Icons.security,
-        'title': AppLocalizations.of(context).totalPrivacy,
-        'desc': AppLocalizations.of(context).totalPrivacyDesc,
-      },
-      {
-        'icon': Icons.photo_library,
-        'title': AppLocalizations.of(context).documentManagement,
-        'desc': AppLocalizations.of(context).documentManagementDesc,
-      },
-      {
-        'icon': Icons.trending_up,
-        'title': AppLocalizations.of(context).budgetControl,
-        'desc': AppLocalizations.of(context).budgetControlDesc,
-      },
+      (
+        icon: Icons.camera_alt_rounded,
+        title: l.smartScanning,
+        desc: l.smartScanningDesc,
+      ),
+      (
+        icon: Icons.analytics_rounded,
+        title: l.detailedReports,
+        desc: l.detailedReportsDesc,
+      ),
+      (
+        icon: Icons.notifications_rounded,
+        title: l.automaticReminders,
+        desc: l.automaticRemindersDesc,
+      ),
+      (
+        icon: Icons.security_rounded,
+        title: l.totalPrivacy,
+        desc: l.totalPrivacyDesc,
+      ),
+      (
+        icon: Icons.photo_library_rounded,
+        title: l.documentManagement,
+        desc: l.documentManagementDesc,
+      ),
+      (
+        icon: Icons.trending_up_rounded,
+        title: l.budgetControl,
+        desc: l.budgetControlDesc,
+      ),
     ];
 
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTokens.sp16),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withAlpha(10),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppLocalizations.of(context).mainFeatures,
+            l.mainFeatures,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.dark,
+              color: isDark ? AppColors.darkText : AppColors.dark,
             ),
           ),
-          SizedBox(height: 12),
-          ...features.map((feature) => _buildFeatureItem(
-            icon: feature['icon'] as IconData,
-            title: feature['title'] as String,
-            description: feature['desc'] as String,
-          )).toList(),
+          const SizedBox(height: AppTokens.sp12),
+          ...features.map((f) => _buildFeatureItem(
+                icon: f.icon,
+                title: f.title,
+                description: f.desc,
+                isDark: isDark,
+              )),
         ],
       ),
     );
@@ -191,25 +195,27 @@ class _AboutScreenState extends State<AboutScreen> {
     required IconData icon,
     required String title,
     required String description,
+    required bool isDark,
   }) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTokens.sp12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(AppTokens.sp8),
             decoration: BoxDecoration(
-              color: AppColors.dark.withAlpha(50),
-              borderRadius: BorderRadius.circular(8),
+              color: (isDark ? AppColors.info : AppColors.dark)
+                  .withAlpha(isDark ? 30 : 15),
+              borderRadius: BorderRadius.circular(AppTokens.radius8),
             ),
             child: Icon(
               icon,
-              color: AppColors.dark,
+              color: isDark ? AppColors.info : AppColors.dark,
               size: 20,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: AppTokens.sp12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,15 +224,17 @@ class _AboutScreenState extends State<AboutScreen> {
                   title,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.dark,
+                    color: isDark ? AppColors.darkText : AppColors.dark,
                     fontSize: 14,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   description,
                   style: TextStyle(
-                    color: AppColors.grey,
+                    color: isDark
+                        ? AppColors.darkSubtext
+                        : AppColors.grey500,
                     fontSize: 12,
                   ),
                 ),
@@ -238,55 +246,46 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildTechnicalInfo(BuildContext context) {
+  // ── Technical info ────────────────────────────────────────────────────────
+  Widget _buildTechnicalInfo(bool isDark, AppLocalizations l) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTokens.sp16),
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withAlpha(10),
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppLocalizations.of(context).technicalInformation,
+            l.technicalInformation,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.dark,
+              color: isDark ? AppColors.darkText : AppColors.dark,
             ),
           ),
-          SizedBox(height: 12),
-          _buildInfoRow(
-            AppLocalizations.of(context).version,
-            _packageInfo.version,
-          ),
-          _buildInfoRow(
-            AppLocalizations.of(context).buildNumber,
-            _packageInfo.buildNumber,
-          ),
+          const SizedBox(height: AppTokens.sp12),
+          _buildInfoRow(l.version, _packageInfo.version, isDark),
+          _buildInfoRow(l.buildNumber, _packageInfo.buildNumber, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, bool isDark) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: AppTokens.sp6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
             style: TextStyle(
-              color: AppColors.grey,
+              color: isDark ? AppColors.darkSubtext : AppColors.grey500,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -294,7 +293,7 @@ class _AboutScreenState extends State<AboutScreen> {
           Text(
             value,
             style: TextStyle(
-              color: AppColors.dark,
+              color: isDark ? AppColors.darkText : AppColors.dark,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -304,26 +303,29 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildDeveloperInfo(BuildContext context) {
+  // ── Developer card ────────────────────────────────────────────────────────
+  Widget _buildDeveloperInfo(bool isDark, AppLocalizations l) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppTokens.sp16),
       decoration: BoxDecoration(
-        color: AppColors.dark,
-        borderRadius: BorderRadius.circular(12),
+        // Always uses a dark-ish tone — accent card
+        color: isDark ? AppColors.darkSurface : AppColors.dark,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: isDark ? Border.all(color: AppColors.darkBorder) : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            AppLocalizations.of(context).developer,
-            style: TextStyle(
+            l.developer,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.white,
             ),
           ),
-          SizedBox(height: 12),
-          Text(
+          const SizedBox(height: AppTokens.sp12),
+          const Text(
             'Bruno Ramos',
             style: TextStyle(
               fontSize: 16,
@@ -331,23 +333,20 @@ class _AboutScreenState extends State<AboutScreen> {
               color: AppColors.white,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: AppTokens.sp8),
           Text(
-            AppLocalizations.of(context).appDescription1.replaceAll(
-              '{version}',
-              _packageInfo.version,
-            ),
+            l.appDescription1.replaceAll('{version}', _packageInfo.version),
             style: TextStyle(
-              color: AppColors.white.withAlpha(250),
+              color: AppColors.white.withAlpha(220),
               fontSize: 14,
               height: 1.5,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: AppTokens.sp8),
           Text(
-            AppLocalizations.of(context).appDescription2,
+            l.appDescription2,
             style: TextStyle(
-              color: AppColors.white.withAlpha(250),
+              color: AppColors.white.withAlpha(220),
               fontSize: 14,
               height: 1.5,
             ),
@@ -357,32 +356,34 @@ class _AboutScreenState extends State<AboutScreen> {
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
+  // ── Footer ────────────────────────────────────────────────────────────────
+  Widget _buildFooter(bool isDark, AppLocalizations l) {
     return Column(
       children: [
-        Divider(color: AppColors.grey.withAlpha(70)),
-        SizedBox(height: 16),
+        Divider(
+            color: isDark ? AppColors.darkBorder : AppColors.grey200),
+        const SizedBox(height: AppTokens.sp16),
         Text(
           'Financial Resume ${_packageInfo.version}',
           style: TextStyle(
-            color: AppColors.dark,
+            color: isDark ? AppColors.darkText : AppColors.dark,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: AppTokens.sp8),
         Text(
-          '${AppLocalizations.of(context).developedBy} Bruno Ramos',
+          '${l.developedBy} Bruno Ramos',
           style: TextStyle(
-            color: AppColors.grey,
+            color: isDark ? AppColors.darkSubtext : AppColors.grey500,
             fontSize: 12,
           ),
         ),
-        SizedBox(height: 4),
+        const SizedBox(height: AppTokens.sp4),
         Text(
-          '© 2024 ${AppLocalizations.of(context).allRightsReserved}',
+          '© 2024 ${l.allRightsReserved}',
           style: TextStyle(
-            color: AppColors.grey,
+            color: isDark ? AppColors.darkSubtext : AppColors.grey500,
             fontSize: 12,
           ),
         ),

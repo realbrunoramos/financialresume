@@ -8,12 +8,12 @@ import '../theme/colors.dart';
 class ImageViewerScreen extends StatelessWidget {
   final String imagePath;
 
-  const ImageViewerScreen({required this.imagePath});
+  const ImageViewerScreen({super.key, required this.imagePath});
 
   Future<void> _shareImage() async {
     final file = File(imagePath);
     if (await file.exists()) {
-      await Share.shareXFiles([XFile(imagePath)], text: "Transaction Invoice");
+      await Share.shareXFiles([XFile(imagePath)], text: 'Transaction Invoice');
     }
   }
 
@@ -22,11 +22,15 @@ class ImageViewerScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context).visualizarFatura),
-        backgroundColor: AppColors.white,
+        // Image viewer always uses a dark AppBar for immersive feel
+        backgroundColor: AppColors.dark,
+        foregroundColor: AppColors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.share),
+            icon: const Icon(Icons.share_rounded),
             onPressed: _shareImage,
+            tooltip: 'Share',
           ),
         ],
       ),
@@ -34,7 +38,7 @@ class ImageViewerScreen extends StatelessWidget {
         imageProvider: FileImage(File(imagePath)),
         minScale: PhotoViewComputedScale.contained,
         maxScale: PhotoViewComputedScale.covered * 2.0,
-        backgroundDecoration: BoxDecoration(color: AppColors.dark),
+        backgroundDecoration: const BoxDecoration(color: AppColors.dark),
       ),
     );
   }
