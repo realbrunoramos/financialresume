@@ -225,6 +225,8 @@ class AppLocalizations {
       'dueInDays2': 'days',
       'invoiceActions': 'Invoice Actions',
       'whatToDoWithThisInvoice': 'What do you want to do with this invoice?',
+      'reserveWarningTitle': 'Amount Exceeds Balance',
+      'reserveWarningBody': 'The amount to reserve exceeds your available balance. Are you sure you want to continue?',
       'reserve': 'Reserve',
       'confirmDeletion': 'Confirm Deletion',
       'confirmDeleteInvoice': 'Are you sure you want to delete this invoice?',
@@ -541,6 +543,8 @@ class AppLocalizations {
       'dueInDays2': 'dias',
       'invoiceActions': 'Ações da Fatura',
       'whatToDoWithThisInvoice': 'O que deseja fazer com esta fatura?',
+      'reserveWarningTitle': 'Valor Excede o Saldo',
+      'reserveWarningBody': 'O valor a reservar excede o seu saldo disponível. Tem certeza que deseja continuar?',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Exclusão',
       'confirmDeleteInvoice': 'Tem certeza que deseja excluir esta fatura?',
@@ -857,6 +861,8 @@ class AppLocalizations {
       'dueInDays2': 'días',
       'invoiceActions': 'Acciones de la Factura',
       'whatToDoWithThisInvoice': '¿Qué desea hacer con esta factura?',
+      'reserveWarningTitle': 'Monto Supera el Saldo',
+      'reserveWarningBody': 'El monto a reservar supera su saldo disponible. ¿Está seguro de que desea continuar?',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Eliminación',
       'confirmDeleteInvoice': '¿Está seguro de que desea eliminar esta factura?',
@@ -1173,6 +1179,8 @@ class AppLocalizations {
       'dueInDays2': 'jours',
       'invoiceActions': 'Actions de la facture',
       'whatToDoWithThisInvoice': 'Que voulez-vous faire avec cette facture?',
+      'reserveWarningTitle': 'Montant Dépasse le Solde',
+      'reserveWarningBody': 'Le montant à réserver dépasse votre solde disponible. Êtes-vous sûr de vouloir continuer?',
       'reserve': 'Réserver',
       'confirmDeletion': 'Confirmer la suppression',
       'confirmDeleteInvoice': 'Êtes-vous sûr de vouloir supprimer cette facture?',
@@ -1489,6 +1497,8 @@ class AppLocalizations {
       'dueInDays2': 'дней',
       'invoiceActions': 'Действия со счетом',
       'whatToDoWithThisInvoice': 'Что вы хотите сделать с этим счетом?',
+      'reserveWarningTitle': 'Сумма Превышает Баланс',
+      'reserveWarningBody': 'Сумма для резерва превышает ваш доступный баланс. Вы уверены, что хотите продолжить?',
       'reserve': 'Резервировать',
       'confirmDeletion': 'Подтвердить удаление',
       'confirmDeleteInvoice': 'Вы уверены, что хотите удалить этот счет?',
@@ -1805,6 +1815,8 @@ class AppLocalizations {
       'dueInDays2': '天后到期',
       'invoiceActions': '发票操作',
       'whatToDoWithThisInvoice': '您想对此发票做什么?',
+      'reserveWarningTitle': '金额超出余额',
+      'reserveWarningBody': '要保留的金额超过了您的可用余额。您确定要继续吗？',
       'reserve': '保留',
       'confirmDeletion': '确认删除',
       'confirmDeleteInvoice': '您确定要删除此发票吗?',
@@ -2121,6 +2133,8 @@ class AppLocalizations {
       'dueInDays2': 'giorni',
       'invoiceActions': 'Azioni fattura',
       'whatToDoWithThisInvoice': 'Cosa vuoi fare con questa fattura?',
+      'reserveWarningTitle': 'Importo Supera il Saldo',
+      'reserveWarningBody': "L'importo da prenotare supera il saldo disponibile. Sei sicuro di voler procedere?",
       'reserve': 'Prenota',
       'confirmDeletion': 'Conferma eliminazione',
       'confirmDeleteInvoice': 'Sei sicuro di voler eliminare questa fattura?',
@@ -2459,6 +2473,8 @@ class AppLocalizations {
   String get unknownEntity => _getText('unknownEntity')!;
   String get whatToDo => _getText('whatToDo')!;
   String get whatToDoWithThisInvoice => _getText('whatToDoWithThisInvoice')!;
+  String get reserveWarningTitle => _getText('reserveWarningTitle')!;
+  String get reserveWarningBody => _getText('reserveWarningBody')!;
   String get addMorePages => _getText('addMorePages')!;
   String get addMorePagesQuestion => _getText('addMorePagesQuestion')!;
   String get amountToReserve => _getText('amountToReserve')!;

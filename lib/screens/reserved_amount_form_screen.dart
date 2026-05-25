@@ -91,7 +91,7 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
                 const SizedBox(width: AppTokens.sp12),
                 Expanded(
                   child: Text(
-                    l.invoiceActions,
+                    l.reserveWarningTitle,
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w700,
@@ -102,7 +102,7 @@ class _ReservedAmountFormScreenState extends State<ReservedAmountFormScreen> {
               ]),
               const SizedBox(height: AppTokens.sp12),
               Text(
-                l.whatToDoWithThisInvoice,
+                l.reserveWarningBody,
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark ? AppColors.darkSubtext : AppColors.grey500,

@@ -82,7 +82,7 @@ class _MyAppState extends State<MyApp> {
               Locale('zh'),
               Locale('it'),
             ],
-            home: HomeScreen(),
+            home: const HomeScreen(),
           );
         },
       ),

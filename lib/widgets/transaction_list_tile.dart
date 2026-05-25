@@ -39,9 +39,8 @@ class TransactionListTile extends StatelessWidget {
     return isDark ? AppColors.danger.withAlpha(30) : AppColors.dangerLight;
   }
 
-  Color _iconColor(bool isDark) {
-    return transaction.isCredit ? AppColors.success : AppColors.danger;
-  }
+  Color get _iconColor =>
+      transaction.isCredit ? AppColors.success : AppColors.danger;
 
   // ── Subtítulo (data + tipo de doc) ───────────────────────────────────────
   String _buildSubtitle() {
@@ -104,7 +103,7 @@ class TransactionListTile extends StatelessWidget {
                   ),
                   child: Icon(
                     _docIcon,
-                    color: _iconColor(isDark),
+                    color: _iconColor,
                     size: 20,
                   ),
                 ),
