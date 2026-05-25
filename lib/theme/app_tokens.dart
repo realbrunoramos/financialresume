@@ -132,12 +132,19 @@ abstract class AppTokens {
 PageRouteBuilder<T> slideRoute<T>(Widget page) => PageRouteBuilder<T>(
   pageBuilder: (_, __, ___) => page,
   transitionDuration: AppTokens.normal,
-  transitionsBuilder: (_, animation, __, child) => FadeTransition(
-    opacity: animation,
-    child: SlideTransition(
-      position: Tween(begin: const Offset(0.04, 0), end: Offset.zero)
-          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
-      child: child,
-    ),
-  ),
+  reverseTransitionDuration: AppTokens.fast,
+  transitionsBuilder: (_, animation, __, child) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: AppTokens.decelerate,
+    );
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0.04, 0), end: Offset.zero)
+            .animate(curved),
+        child: child,
+      ),
+    );
+  },
 );

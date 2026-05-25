@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen>
             tooltip: loc.about,
             onPressed: () => Navigator.push(
               context,
-              _slide(const AboutScreen()),
+              slideRoute(const AboutScreen()),
             ),
           ),
           IconButton(
@@ -269,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen>
             tooltip: loc.settings,
             onPressed: () => Navigator.push(
               context,
-              _slide(SettingsScreen()),
+              slideRoute(const SettingsScreen()),
             ),
           ),
           const SizedBox(width: AppTokens.sp4),
@@ -378,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen>
                   HapticFeedback.lightImpact();
                   Navigator.push(
                     context,
-                    _slide(SectionScreen(section: sections[i])),
+                    slideRoute(SectionScreen(section: sections[i])),
                   ).then((_) => _reload());
                 },
                 onLongPress: () => _showOptions(sections[i]),
@@ -937,25 +937,3 @@ class _SectionStats {
   const _SectionStats({required this.count, required this.balance});
 }
 
-/// Transição de ecrã slide + fade
-PageRoute<T> _slide<T>(Widget page) => PageRouteBuilder<T>(
-  pageBuilder: (_, animation, __) => page,
-  transitionDuration: AppTokens.normal,
-  reverseTransitionDuration: AppTokens.fast,
-  transitionsBuilder: (_, animation, __, child) {
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: AppTokens.decelerate,
-    );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0.04, 0),
-          end: Offset.zero,
-        ).animate(curved),
-        child: child,
-      ),
-    );
-  },
-);
