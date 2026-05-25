@@ -13,6 +13,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/database_service.dart';
+import '../services/ocr_parser_service.dart';
 import '../services/secure_storage_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
@@ -427,6 +428,12 @@ class TextBasedDocumentImageProcessor {
 
   Map<String, dynamic> get lightAnalysis => _lightAnalysis;
 
+  /// Full OCR text — exposed for the ML Kit fallback parser.
+  String get extractedText => _recognizedText?.text ?? '';
+
+  /// Number of detected text blocks — drives the quality confidence badge.
+  int get detectedBlockCount => _recognizedText?.blocks.length ?? 0;
+
   Future<void> dispose() async {
     await _textRecognizer.close();
   }
@@ -502,6 +509,11 @@ class _ScanFileScreenState extends State<ScanFileScreen>
   List<String> _filterOptions = [];
   final List<String> _allScannedImages = [];
   Map<String, dynamic>? _primaryAiAnalysis;
+
+  // ── ML Kit free-tier data (saved before processor disposal) ───────────────
+  String _mlKitText        = '';
+  int    _mlKitBlockCount  = 0;
+  int    _mlKitConfidence  = 0; // 0-5 extracted fields
 
   @override
   void initState() {
@@ -674,27 +686,75 @@ class _ScanFileScreenState extends State<ScanFileScreen>
   }
 
   Widget _buildCurrentFilterIndicator() {
-    if (_processedImagePath == null ) {
-      return SizedBox.shrink();
+    if (_processedImagePath == null) {
+      return const SizedBox.shrink();
     }
 
     return Positioned(
       top: 50,
       left: 20,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: Colors.black.withAlpha(222),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           '${AppLocalizations.of(context).filterLabel} ${_filterOptions[_selectedFilter]}',
-          style: TextStyle(
+          style: const TextStyle(
             color: AppColors.white,
             fontSize: 12,
             fontWeight: FontWeight.bold,
           ),
         ),
+      ),
+    );
+  }
+
+  /// Confidence badge — shows how many fields ML Kit could extract (0–5).
+  /// Positioned at bottom-left of the processed image overlay.
+  Widget _buildConfidenceBadge() {
+    if (_processedImagePath == null || _mlKitBlockCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    // Map confidence (0-5 fields) to a colour.
+    final Color badgeColor;
+    final String label;
+    if (_mlKitConfidence >= 4) {
+      badgeColor = AppColors.success;
+      label = '●●●';
+    } else if (_mlKitConfidence >= 2) {
+      badgeColor = AppColors.warning;
+      label = '●●○';
+    } else {
+      badgeColor = AppColors.danger;
+      label = '●○○';
+    }
+
+    return Positioned(
+      bottom: 90,
+      left: 20,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(200),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: badgeColor.withAlpha(160), width: 1),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label,
+              style: TextStyle(
+                  color: badgeColor, fontSize: 10, letterSpacing: 2)),
+          const SizedBox(width: 6),
+          Text(
+            'OCR $_mlKitBlockCount',
+            style: const TextStyle(
+                color: AppColors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w600),
+          ),
+        ]),
       ),
     );
   }
@@ -918,6 +978,14 @@ class _ScanFileScreenState extends State<ScanFileScreen>
         );
       }
     } finally {
+      // Save ML Kit data BEFORE disposing the processor — used as free-tier
+      // fallback when no Gemini API key is configured.
+      if (_processor != null) {
+        _mlKitText       = _processor!.extractedText;
+        _mlKitBlockCount = _processor!.detectedBlockCount;
+        final parsed     = OcrParserService.parse(_mlKitText);
+        _mlKitConfidence = parsed.confidence;
+      }
       if (mounted) {
         setState(() {
           _isProcessing = false;
@@ -950,12 +1018,15 @@ class _ScanFileScreenState extends State<ScanFileScreen>
       final apiKey = await SecureStorageService.readApiKey();
 
       if (apiKey == null || apiKey.isEmpty) {
+        // No API key → use ML Kit free-tier extraction as fallback.
+        final parsed = OcrParserService.parse(_mlKitText);
         if (mounted) {
+          setState(() => _aiAnalysis = parsed.fields);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(AppLocalizations.of(context).configureGeminiApiKeyForAutoAnalysis),
-              backgroundColor: AppColors.red,
-              duration: Duration(seconds: 5),
+              content: Text(AppLocalizations.of(context).basicOcrExtraction),
+              backgroundColor: AppColors.info,
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -1082,6 +1153,12 @@ ${invoicesString.toString()}
       }
     } catch (e) {
       debugPrint('$errorAiLabel $e');
+      // Gemini failed — fall back to the on-device ML Kit result so the user
+      // still gets pre-filled fields rather than a blank form.
+      if (_mlKitText.isNotEmpty) {
+        final parsed = OcrParserService.parse(_mlKitText);
+        if (mounted) setState(() => _aiAnalysis = parsed.fields);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1175,6 +1252,8 @@ ${invoicesString.toString()}
                           _buildFilterSelector(),
 
                           _buildFilterToggleButton(),
+
+                          _buildConfidenceBadge(),
 
                           Positioned(
                             bottom: 20,

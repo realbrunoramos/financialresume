@@ -313,6 +313,7 @@ class AppLocalizations {
       'themeLight': 'Light',
       'themeSystem': 'System',
       'themeDark': 'Dark',
+      'basicOcrExtraction': 'Basic extraction (no Gemini API)',
       'errorSavingSettings': 'Error saving settings',
       'apiKeyRemoved': 'API key removed!',
       'apiKeyCopied': 'API key copied to clipboard!',
@@ -638,6 +639,7 @@ class AppLocalizations {
       'themeLight': 'Claro',
       'themeSystem': 'Sistema',
       'themeDark': 'Escuro',
+      'basicOcrExtraction': 'Extração básica (sem API Gemini)',
       'errorSavingSettings': 'Erro ao salvar configurações',
       'apiKeyRemoved': 'Chave API removida!',
       'apiKeyCopied': 'Chave API copiada para a área de transferência!',
@@ -963,6 +965,7 @@ class AppLocalizations {
       'themeLight': 'Claro',
       'themeSystem': 'Sistema',
       'themeDark': 'Oscuro',
+      'basicOcrExtraction': 'Extracción básica (sin API Gemini)',
       'errorSavingSettings': 'Error al guardar la configuración',
       'apiKeyRemoved': '¡Clave API eliminada!',
       'apiKeyCopied': '¡Clave API copiada al portapapeles!',
@@ -1288,6 +1291,7 @@ class AppLocalizations {
       'themeLight': 'Clair',
       'themeSystem': 'Système',
       'themeDark': 'Sombre',
+      'basicOcrExtraction': 'Extraction de base (sans API Gemini)',
       'errorSavingSettings': 'Erreur lors de la sauvegarde des paramètres',
       'apiKeyRemoved': 'Clé API supprimée!',
       'apiKeyCopied': 'Clé API copiée dans le presse-papiers!',
@@ -1613,6 +1617,7 @@ class AppLocalizations {
       'themeLight': 'Светлая',
       'themeSystem': 'Системная',
       'themeDark': 'Тёмная',
+      'basicOcrExtraction': 'Базовое извлечение (без API Gemini)',
       'errorSavingSettings': 'Ошибка сохранения настроек',
       'apiKeyRemoved': 'Ключ API удален!',
       'apiKeyCopied': 'Ключ API скопирован в буфер обмена!',
@@ -1938,6 +1943,7 @@ class AppLocalizations {
       'themeLight': '浅色',
       'themeSystem': '系统',
       'themeDark': '深色',
+      'basicOcrExtraction': '基础提取（无Gemini API）',
       'errorSavingSettings': '保存设置错误',
       'apiKeyRemoved': 'API密钥已删除!',
       'apiKeyCopied': 'API密钥已复制到剪贴板!',
@@ -2263,6 +2269,7 @@ class AppLocalizations {
       'themeLight': 'Chiaro',
       'themeSystem': 'Sistema',
       'themeDark': 'Scuro',
+      'basicOcrExtraction': 'Estrazione di base (senza API Gemini)',
       'errorSavingSettings': 'Errore salvataggio impostazioni',
       'apiKeyRemoved': 'Chiave API rimossa!',
       'apiKeyCopied': 'Chiave API copiata negli appunti!',
@@ -2602,6 +2609,7 @@ class AppLocalizations {
   String get themeLight => _getText('themeLight')!;
   String get themeSystem => _getText('themeSystem')!;
   String get themeDark => _getText('themeDark')!;
+  String get basicOcrExtraction => _getText('basicOcrExtraction')!;
   String get errorSavingSettings => _getText('errorSavingSettings')!;
   String get apiKeyRemoved => _getText('apiKeyRemoved')!;
   String get apiKeyCopied => _getText('apiKeyCopied')!;
