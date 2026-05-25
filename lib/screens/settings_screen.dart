@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/language_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/database_service.dart';
 import '../services/secure_storage_service.dart';
 import '../theme/colors.dart';
@@ -384,6 +385,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           onChanged: (v) {
                             if (v != null) setState(() => _lang = v);
                           },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppTokens.sp20),
+
+                // ── Appearance Section ─────────────────────────────────────
+                _SectionLabel(label: l.appearance, isDark: isDark),
+                _SettingsCard(
+                  isDark: isDark,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTokens.sp16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withAlpha(isDark ? 40 : 20),
+                              borderRadius: BorderRadius.circular(AppTokens.radius8),
+                            ),
+                            child: const Icon(Icons.brightness_6_rounded,
+                                color: AppColors.warning, size: 18),
+                          ),
+                          const SizedBox(width: AppTokens.sp12),
+                          Expanded(
+                            child: Text(l.theme,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.darkText : AppColors.dark,
+                                )),
+                          ),
+                        ]),
+                        const SizedBox(height: AppTokens.sp16),
+                        Consumer<ThemeProvider>(
+                          builder: (_, themeProvider, __) =>
+                            SegmentedButton<ThemeMode>(
+                              style: SegmentedButton.styleFrom(
+                                backgroundColor: isDark
+                                    ? AppColors.darkBackground
+                                    : AppColors.grey100,
+                                selectedBackgroundColor: isDark
+                                    ? AppColors.darkCard
+                                    : AppColors.dark,
+                                selectedForegroundColor: AppColors.white,
+                                foregroundColor: isDark
+                                    ? AppColors.darkSubtext
+                                    : AppColors.grey500,
+                              ),
+                              segments: [
+                                ButtonSegment(
+                                  value: ThemeMode.light,
+                                  icon: const Icon(Icons.light_mode_rounded, size: 17),
+                                  label: Text(l.themeLight),
+                                ),
+                                ButtonSegment(
+                                  value: ThemeMode.system,
+                                  icon: const Icon(Icons.phone_android_rounded, size: 17),
+                                  label: Text(l.themeSystem),
+                                ),
+                                ButtonSegment(
+                                  value: ThemeMode.dark,
+                                  icon: const Icon(Icons.dark_mode_rounded, size: 17),
+                                  label: Text(l.themeDark),
+                                ),
+                              ],
+                              selected: {themeProvider.mode},
+                              onSelectionChanged: (selected) =>
+                                  context.read<ThemeProvider>().setMode(selected.first),
+                            ),
                         ),
                       ],
                     ),

@@ -2,6 +2,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'screens/home_screen.dart';
@@ -10,15 +11,24 @@ import 'l10n/app_localizations.dart';
 import 'services/database_service.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/language_provider.dart';
+import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 late List<CameraDescription> cameras;
 final DatabaseService _dbService = DatabaseService();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialise timezone database and pin it to the device's local zone.
+  // Without setLocalLocation, tz.local defaults to UTC and all scheduled
+  // notifications fire at the wrong time.
   tz.initializeTimeZones();
+  final String localTz = await FlutterTimezone.getLocalTimezone();
+  tz.setLocalLocation(tz.getLocation(localTz));
+
   await initializeDateFormatting('pt_PT', null);
   cameras = await availableCameras();
   await _dbService.initializeDefaultSettings();
@@ -58,14 +68,15 @@ class _MyAppState extends State<MyApp> {
       providers: [
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: Consumer<LanguageProvider>(
-        builder: (context, languageProvider, child) {
+      child: Consumer2<LanguageProvider, ThemeProvider>(
+        builder: (context, languageProvider, themeProvider, child) {
           return MaterialApp(
             title: 'Financial Resume',
             theme: appTheme,
             darkTheme: appDarkTheme,
-            themeMode: ThemeMode.system,
+            themeMode: themeProvider.mode,
             locale: languageProvider.locale,
             localizationsDelegates: const [
               AppLocalizations.delegate,

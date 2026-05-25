@@ -1,9 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mailer/mailer.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:uuid/uuid.dart';
 import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
@@ -24,7 +25,6 @@ class TransactionFormScreen extends StatefulWidget {
 }
 
 class _TransactionFormScreenState extends State<TransactionFormScreen> {
-  final DatabaseService dbService = DatabaseService();
   final _formKey = GlobalKey<FormState>();
   final _entityController = TextEditingController();
   final _amountController = TextEditingController();
@@ -80,6 +80,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   @override
   void dispose() {
     _entityController.dispose();
+    _amountController.dispose();
+    _descriptionController.dispose();
+    _dateController.dispose();
+    _dueDateController.dispose();
+    _monthRefController.dispose();
     super.dispose();
   }
 
@@ -912,7 +917,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
       final errorMsg = AppLocalizations.of(context).errorSavingTransaction;
 
       final transaction = Transaction(
-        id: widget.transaction?.id ?? DateTime.now().toString(),
+        id: widget.transaction?.id ?? const Uuid().v4(),
         amount: double.parse(_amountController.text),
         entity: _entityController.text,
         description: _descriptionController.text,
@@ -1094,7 +1099,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         decoration: InputDecoration(
                           labelText: AppLocalizations.of(context).entity,
                           hintText: AppLocalizations.of(context).personOrCompanyName,
-                          border: OutlineInputBorder(),
                         ),
                       ),
                       SizedBox(height: 16),
@@ -1102,7 +1106,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         controller: _amountController,
                         decoration: InputDecoration(
                           labelText: AppLocalizations.of(context).valueEuro,
-                          border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
@@ -1121,7 +1124,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         decoration: InputDecoration(
                           labelText: AppLocalizations.of(context).description,
                           hintText: AppLocalizations.of(context).transactionDescription,
-                          border: OutlineInputBorder(),
                         ),
                         maxLines: 2,
                       ),
@@ -1130,8 +1132,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                         controller: _dateController,
                         decoration: InputDecoration(
                           labelText: AppLocalizations.of(context).date,
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.calendar_today),
+                          suffixIcon: const Icon(Icons.calendar_today),
                         ),
                         readOnly: true,
                         onTap: () => _selectDate(context),
@@ -1150,8 +1151,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           controller: _monthRefController,
                           decoration: InputDecoration(
                             labelText: AppLocalizations.of(context).monthYearReference,
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
+                            suffixIcon: const Icon(Icons.calendar_today),
                           ),
                           readOnly: true,
                           onTap: () => _selectMonthRef(context),
@@ -1164,8 +1164,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                           controller: _dueDateController,
                           decoration: InputDecoration(
                             labelText: AppLocalizations.of(context).deadline,
-                            border: OutlineInputBorder(),
-                            suffixIcon: Icon(Icons.calendar_today),
+                            suffixIcon: const Icon(Icons.calendar_today),
                           ),
                           readOnly: true,
                           onTap: () => _selectDueDate(context),

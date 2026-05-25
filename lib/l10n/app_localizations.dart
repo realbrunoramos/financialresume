@@ -308,6 +308,11 @@ class AppLocalizations {
       'copyLink': 'Copy Link',
       'errorOpeningLink': 'Error opening link. Please manually access: aistudio.google.com',
       'settingsSaved': 'Settings saved successfully!',
+      'appearance': 'Appearance',
+      'theme': 'Theme',
+      'themeLight': 'Light',
+      'themeSystem': 'System',
+      'themeDark': 'Dark',
       'errorSavingSettings': 'Error saving settings',
       'apiKeyRemoved': 'API key removed!',
       'apiKeyCopied': 'API key copied to clipboard!',
@@ -628,6 +633,11 @@ class AppLocalizations {
       'copyLink': 'Copiar Link',
       'errorOpeningLink': 'Erro ao abrir link. Aceda manualmente a: aistudio.google.com',
       'settingsSaved': 'Configurações salvas com sucesso!',
+      'appearance': 'Aparência',
+      'theme': 'Tema',
+      'themeLight': 'Claro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Escuro',
       'errorSavingSettings': 'Erro ao salvar configurações',
       'apiKeyRemoved': 'Chave API removida!',
       'apiKeyCopied': 'Chave API copiada para a área de transferência!',
@@ -948,6 +958,11 @@ class AppLocalizations {
       'copyLink': 'Copiar Enlace',
       'errorOpeningLink': 'Error al abrir el enlace. Acceda manualmente a: aistudio.google.com',
       'settingsSaved': '¡Configuración guardada con éxito!',
+      'appearance': 'Apariencia',
+      'theme': 'Tema',
+      'themeLight': 'Claro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Oscuro',
       'errorSavingSettings': 'Error al guardar la configuración',
       'apiKeyRemoved': '¡Clave API eliminada!',
       'apiKeyCopied': '¡Clave API copiada al portapapeles!',
@@ -1268,6 +1283,11 @@ class AppLocalizations {
       'copyLink': 'Copier le lien',
       'errorOpeningLink': 'Erreur lors de l\'ouverture du lien. Accédez manuellement à: aistudio.google.com',
       'settingsSaved': 'Paramètres sauvegardés avec succès!',
+      'appearance': 'Apparence',
+      'theme': 'Thème',
+      'themeLight': 'Clair',
+      'themeSystem': 'Système',
+      'themeDark': 'Sombre',
       'errorSavingSettings': 'Erreur lors de la sauvegarde des paramètres',
       'apiKeyRemoved': 'Clé API supprimée!',
       'apiKeyCopied': 'Clé API copiée dans le presse-papiers!',
@@ -1588,6 +1608,11 @@ class AppLocalizations {
       'copyLink': 'Копировать ссылку',
       'errorOpeningLink': 'Ошибка открытия ссылки. Перейдите вручную: aistudio.google.com',
       'settingsSaved': 'Настройки успешно сохранены!',
+      'appearance': 'Внешний вид',
+      'theme': 'Тема',
+      'themeLight': 'Светлая',
+      'themeSystem': 'Системная',
+      'themeDark': 'Тёмная',
       'errorSavingSettings': 'Ошибка сохранения настроек',
       'apiKeyRemoved': 'Ключ API удален!',
       'apiKeyCopied': 'Ключ API скопирован в буфер обмена!',
@@ -1908,6 +1933,11 @@ class AppLocalizations {
       'copyLink': '复制链接',
       'errorOpeningLink': '打开链接错误。请手动访问: aistudio.google.com',
       'settingsSaved': '设置保存成功!',
+      'appearance': '外观',
+      'theme': '主题',
+      'themeLight': '浅色',
+      'themeSystem': '系统',
+      'themeDark': '深色',
       'errorSavingSettings': '保存设置错误',
       'apiKeyRemoved': 'API密钥已删除!',
       'apiKeyCopied': 'API密钥已复制到剪贴板!',
@@ -2228,6 +2258,11 @@ class AppLocalizations {
       'copyLink': 'Copia link',
       'errorOpeningLink': 'Errore apertura link. Accedi manualmente a: aistudio.google.com',
       'settingsSaved': 'Impostazioni salvate con successo!',
+      'appearance': 'Aspetto',
+      'theme': 'Tema',
+      'themeLight': 'Chiaro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Scuro',
       'errorSavingSettings': 'Errore salvataggio impostazioni',
       'apiKeyRemoved': 'Chiave API rimossa!',
       'apiKeyCopied': 'Chiave API copiata negli appunti!',
@@ -2562,6 +2597,11 @@ class AppLocalizations {
   String get copyLink => _getText('copyLink')!;
   String get errorOpeningLink => _getText('errorOpeningLink')!;
   String get settingsSaved => _getText('settingsSaved')!;
+  String get appearance => _getText('appearance')!;
+  String get theme => _getText('theme')!;
+  String get themeLight => _getText('themeLight')!;
+  String get themeSystem => _getText('themeSystem')!;
+  String get themeDark => _getText('themeDark')!;
   String get errorSavingSettings => _getText('errorSavingSettings')!;
   String get apiKeyRemoved => _getText('apiKeyRemoved')!;
   String get apiKeyCopied => _getText('apiKeyCopied')!;

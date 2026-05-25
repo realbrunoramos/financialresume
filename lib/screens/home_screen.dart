@@ -102,8 +102,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (!mounted) return;
-    if (action == 'rename') _renameSection(section);
-    else if (action == 'delete') _deleteSection(section);
+    if (action == 'rename') {
+      _renameSection(section);
+    } else if (action == 'delete') {
+      _deleteSection(section);
+    }
   }
 
   Future<void> _renameSection(Section section) async {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:financialresume/models/transaction.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
@@ -75,7 +76,9 @@ class TextBasedDocumentImageProcessor {
       }
 
       final imageToEnhance = modifiedImage ?? originalImage!;
-      finalImage = applyManualFilter(imageToEnhance, 2);
+      // Run the heavy pixel loop in a background isolate to keep the UI
+      // thread free during document processing.
+      finalImage = await compute(_applyColorFilterIsolate, imageToEnhance);
 
     } catch (e) {
       rethrow;
@@ -134,10 +137,15 @@ class TextBasedDocumentImageProcessor {
       final imageToProcess = modifiedImage ?? originalImage;
       if (imageToProcess == null) return null;
 
-      final filteredImage = applyManualFilter(imageToProcess, filterChoice);
+      // Filter 2 uses the heavy per-pixel loop — run in background isolate.
+      // All other filters use imge.adjustColor which is fast enough on-thread.
+      final imge.Image filteredImage = filterChoice == 2
+          ? await compute(_applyColorFilterIsolate, imageToProcess)
+          : applyManualFilter(imageToProcess, filterChoice);
 
       final tempDir = await getTemporaryDirectory();
-      final filteredPath = '${tempDir.path}/filtered_${filterChoice}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final filteredPath =
+          '${tempDir.path}/filtered_${filterChoice}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       File(filteredPath).writeAsBytesSync(imge.encodeJpg(filteredImage));
 
       return File(filteredPath);
@@ -424,6 +432,47 @@ class TextBasedDocumentImageProcessor {
   }
 }
 
+// ─── Isolate helper ───────────────────────────────────────────────────────────
+// Must be a top-level function so Flutter's compute() can send it to a
+// background isolate. Runs the heavy per-pixel colour-filter loop off the
+// UI thread, eliminating the 5–15 s freeze on high-resolution images.
+imge.Image _applyColorFilterIsolate(imge.Image image) {
+  const th  = 0.35;
+  const th2 = 0.29;
+  const th3 = 0.32;
+  final width  = image.width;
+  final height = image.height;
+  final out = imge.copyResize(image, width: width, height: height);
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      final pixel = out.getPixel(x, y);
+      final gray  = (pixel.r + pixel.g + pixel.b).toInt() ~/ 3;
+      if (gray > 150) {
+        out.setPixel(x, y, imge.ColorRgb8(
+          (pixel.r + pixel.r * th).clamp(0, 255).toInt(),
+          (pixel.g + pixel.g * th).clamp(0, 255).toInt(),
+          (pixel.b + pixel.b * th).clamp(0, 255).toInt(),
+        ));
+      } else if (gray > 90) {
+        out.setPixel(x, y, imge.ColorRgb8(
+          (pixel.r + pixel.r * th2).clamp(0, 255).toInt(),
+          (pixel.g + pixel.g * th2).clamp(0, 255).toInt(),
+          (pixel.b + pixel.b * th2).clamp(0, 255).toInt(),
+        ));
+      } else {
+        out.setPixel(x, y, imge.ColorRgb8(
+          (pixel.r - pixel.r * th3).clamp(0, 255).toInt(),
+          (pixel.g - pixel.g * th3).clamp(0, 255).toInt(),
+          (pixel.b - pixel.b * th3).clamp(0, 255).toInt(),
+        ));
+      }
+    }
+  }
+  return out;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 class ScanFileScreen extends StatefulWidget {
   final String sectionId;
   const ScanFileScreen({super.key, required this.sectionId});
@@ -432,7 +481,8 @@ class ScanFileScreen extends StatefulWidget {
   State<ScanFileScreen> createState() => _ScanFileScreenState();
 }
 
-class _ScanFileScreenState extends State<ScanFileScreen> {
+class _ScanFileScreenState extends State<ScanFileScreen>
+    with SingleTickerProviderStateMixin {
   final DatabaseService dbService = DatabaseService();
   CameraController? _controller;
   List<CameraDescription>? _cameras;
@@ -445,8 +495,7 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   bool _isAnalyzingAI = false;
   final ImagePicker _picker = ImagePicker();
   bool _showScanAnimation = false;
-  double _scanPosition = 0.0;
-  late Timer _scanTimer;
+  late AnimationController _scanCtrl;
   int _selectedFilter = 2;
   bool _showFilterOptions = false;
 
@@ -457,29 +506,16 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   @override
   void initState() {
     super.initState();
-    _filterOptions = [
-      "0",
-      "1",
-      "2",
-      "3",
-      "4",
-      "Original",
-    ];
+    _filterOptions = ['0', '1', '2', '3', '4', 'Original'];
     _initCamera();
 
-    _showScanAnimation = true;
-
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
-      if (_showScanAnimation) {
-        setState(() {
-          _scanPosition += 5;
-          final screenHeight = MediaQuery.of(context).size.height;
-          if (_scanPosition > screenHeight * 2) {
-            _scanPosition = 0.0;
-          }
-        });
-      }
-    });
+    // Vsync-aware animation replaces the raw Timer.periodic that previously
+    // called MediaQuery.of(context) from a timer callback (stale-context risk)
+    // and fired at 60 Hz regardless of vsync.
+    _scanCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
   }
 
   Future<void> _applyManualFilter(int filterIndex) async {
@@ -855,7 +891,6 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
       _isProcessing = true;
       _showScanAnimation = true;
       _selectedFilter = 2;
-      _scanPosition = 0.0;
     });
 
     try {
@@ -994,27 +1029,41 @@ ${invoicesString.toString()}
 {"tipo_documento":3,"entidade":"CASA PIA","data_emissao":"03 10 2025","valor_total":"25.00","descrição":"Pagamento do serviço casa PIA","mes_ano_ref":"10/2025","é_crédito":"0","ids_ref_fatura":"2025-10-02 12:07:37.790990,2025-10-01 10:07:37.865099","numero_serie":"UNKNOWN","metodo_pagamento":"67890/12345678901"}
 {"tipo_documento":3,"entidade":"Diogo","data_emissao":"07 10 2025","valor_total":"500.00","descrição":"Transferencia de Diogo","mes_ano_ref":"10/2025","é_crédito":"1","ids_ref_fatura":"","numero_serie":"UNKNOWN","metodo_pagamento":"PT50 0002 0123 1234 5678 9015 4"}""";
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt},
+      http.Response? response;
+      for (int attempt = 0; attempt < 3; attempt++) {
+        try {
+          response = await http.post(
+            url,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'contents': [
                 {
-                  'inlineData': {
-                    'mimeType': 'image/jpeg',
-                    'data': imageBase64
-                  }
+                  'parts': [
+                    {'text': prompt},
+                    {
+                      'inlineData': {
+                        'mimeType': 'image/jpeg',
+                        'data': imageBase64,
+                      }
+                    }
+                  ]
                 }
               ]
-            }
-          ]
-        }),
-      );
+            }),
+          ).timeout(const Duration(seconds: 45));
+          // Retry on 429 (rate-limit) with exponential back-off; break on others.
+          if (response.statusCode == 429) {
+            await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
+            continue;
+          }
+          break;
+        } on TimeoutException {
+          if (attempt == 2) rethrow;
+          await Future.delayed(const Duration(seconds: 3));
+        }
+      }
 
-      if (response.statusCode == 200) {
+      if (response != null && response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final content = data['candidates'][0]['content']['parts'][0]['text'];
 
@@ -1028,7 +1077,8 @@ ${invoicesString.toString()}
           }
         }
       } else {
-        throw Exception('Falha na API: ${response.statusCode}');
+        throw Exception(
+            'Falha na API: ${response?.statusCode ?? 'sem resposta'}');
       }
     } catch (e) {
       debugPrint('$errorAiLabel $e');
@@ -1052,9 +1102,9 @@ ${invoicesString.toString()}
 
   @override
   void dispose() {
+    _scanCtrl.dispose();
     _controller?.dispose();
     _processor?.dispose();
-    _scanTimer.cancel();
     super.dispose();
   }
 
@@ -1086,14 +1136,21 @@ ${invoicesString.toString()}
                           ),
 
                           if (_showScanAnimation)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              top: _scanPosition,
+                            AnimatedBuilder(
+                              animation: _scanCtrl,
+                              builder: (context, child) {
+                                final h = MediaQuery.of(context).size.height;
+                                return Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  top: _scanCtrl.value * h * 2,
+                                  child: child!,
+                                );
+                              },
                               child: Container(
                                 height: 4,
                                 decoration: BoxDecoration(
-                                  gradient: LinearGradient(
+                                  gradient: const LinearGradient(
                                     colors: [
                                       Colors.transparent,
                                       AppColors.green,
@@ -1182,10 +1239,17 @@ ${invoicesString.toString()}
                           ),
 
                           if (_showScanAnimation)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              top: _scanPosition.clamp(0.0, MediaQuery.of(context).size.height),
+                            AnimatedBuilder(
+                              animation: _scanCtrl,
+                              builder: (context, child) {
+                                final h = MediaQuery.of(context).size.height;
+                                return Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  top: (_scanCtrl.value * h * 2).clamp(0.0, h),
+                                  child: child!,
+                                );
+                              },
                               child: Container(
                                 height: 3,
                                 decoration: BoxDecoration(
