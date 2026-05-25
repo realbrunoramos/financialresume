@@ -263,6 +263,24 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
   }
 
+  /// Paginated variant — pass [limit] and [offset] for cursor-based loading.
+  Future<List<trns.Transaction>> getTransactionsPaged(
+    String sectionId, {
+    int limit = 30,
+    int offset = 0,
+  }) async {
+    final db = await database;
+    final maps = await db.query(
+      transactionTable,
+      where: 'sectionId = ? AND NOT (docType = ? AND paid = 0)',
+      whereArgs: [sectionId, '2'],
+      orderBy: 'date DESC',
+      limit: limit,
+      offset: offset,
+    );
+    return maps.map((map) => trns.Transaction.fromMap(map)).toList();
+  }
+
   /// Total balance across ALL sections (excludes unpaid invoices, same rule
   /// as [getAllTransactions]).  Single SQL query — O(1) instead of O(N).
   Future<double> getTotalBalance() async {

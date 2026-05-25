@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../l10n/app_localizations.dart';
 import '../models/section.dart';
 import '../models/transaction.dart';
@@ -85,12 +86,19 @@ class _SectionScreenState extends State<SectionScreen>
   final DatabaseService _db = DatabaseService();
   late Future<_FinancialData> _future;
 
-  final _searchCtrl = TextEditingController();
+  final _searchCtrl  = TextEditingController();
   final _searchFocus = FocusNode();
-  List<Transaction> _all = [];
+  final _scrollCtrl  = ScrollController();
+  List<Transaction> _all      = [];
   List<Transaction> _filtered = [];
-  bool _searchFocused = false;
+  bool _searchFocused   = false;
   bool _reservedExpanded = false;
+
+  // ── Pagination state ───────────────────────────────────────────────────────
+  static const int _kPageSize = 30;
+  int  _txOffset      = 0;
+  bool _hasMore       = true;
+  bool _isLoadingMore = false;
 
   late AnimationController _fabCtrl;
   late Animation<double> _fabScale;
@@ -107,6 +115,7 @@ class _SectionScreenState extends State<SectionScreen>
       _fabCtrl.forward();
     });
 
+    _scrollCtrl.addListener(_onScroll);
     _future = _load();
     _searchCtrl.addListener(_filter);
     _searchFocus.addListener(() {
@@ -117,61 +126,116 @@ class _SectionScreenState extends State<SectionScreen>
   @override
   void dispose() {
     _fabCtrl.dispose();
+    _scrollCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
   }
 
+  // ── Scroll → load more ─────────────────────────────────────────────────────
+  void _onScroll() {
+    if (_scrollCtrl.position.pixels >=
+        _scrollCtrl.position.maxScrollExtent - 300) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore || _searchCtrl.text.isNotEmpty) return;
+    setState(() => _isLoadingMore = true);
+    try {
+      final more = await _db.getTransactionsPaged(
+        widget.section.id,
+        limit:  _kPageSize,
+        offset: _txOffset,
+      );
+      if (!mounted) return;
+      setState(() {
+        _all.addAll(more);
+        _txOffset += more.length;
+        _hasMore       = more.length == _kPageSize;
+        _isLoadingMore = false;
+        _filtered      = List.of(_all);
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
   // ── Data ───────────────────────────────────────────────────────────────────
   Future<_FinancialData> _load() async {
-    final txns     = await _db.getAllTransactions(widget.section.id);
+    // Balance + count from a single SQL aggregation (no need to hold all rows).
+    final stats    = await _db.getSectionStats(widget.section.id);
     final reserved = await _db.getReservedAmounts(widget.section.id);
     final invoices = await _db.getNoPaidInvoices(widget.section.id);
 
-    final balance = txns.fold<double>(
-        0, (s, t) => s + (t.isCredit ? t.amount : -t.amount));
-    final totalReserved =
-        reserved.fold<double>(0, (s, r) => s + r.amount);
+    final totalReserved = reserved.fold<double>(0, (s, r) => s + r.amount);
     final available =
-        (balance - totalReserved).clamp(0.0, double.infinity);
+        (stats.balance - totalReserved).clamp(0.0, double.infinity);
 
     final now     = DateTime.now();
     final lastDay = DateTime(now.year, now.month + 1, 0);
     final days    = lastDay.difference(now).inDays + 1;
     final daily   = available > 0 && days > 0 ? available / days : 0.0;
 
-    if (mounted) setState(() { _all = txns; _filter(); });
+    // First page of transactions.
+    _txOffset = 0;
+    final firstPage = await _db.getTransactionsPaged(
+      widget.section.id,
+      limit:  _kPageSize,
+      offset: 0,
+    );
+    _txOffset = firstPage.length;
+    _hasMore  = firstPage.length == _kPageSize;
+
+    if (mounted) {
+      setState(() {
+        _all = firstPage;
+        _filtered = List.of(firstPage);
+      });
+    }
 
     return _FinancialData(
-      balance: balance,
-      totalReserved: totalReserved,
+      balance:         stats.balance,
+      totalReserved:   totalReserved,
       availableAmount: available,
-      dailyLimit: daily,
-      remainingDays: days,
-      transactions: txns,
-      invoices: _sortInvoices(invoices),
+      dailyLimit:      daily,
+      remainingDays:   days,
+      transactions:    firstPage,
+      invoices:        _sortInvoices(invoices),
       reservedAmounts: reserved,
     );
   }
 
   Future<void> _refresh() async {
+    // Reset pagination then reload.
+    _txOffset      = 0;
+    _hasMore       = true;
+    _isLoadingMore = false;
     final d = await _load();
     if (mounted) setState(() => _future = Future.value(d));
   }
 
-  void _filter() {
+  /// Filters the in-memory list when the query is empty; queries the DB for
+  /// a full-text search so results aren't limited to the current page.
+  Future<void> _filter() async {
     final q = _searchCtrl.text.toLowerCase().trim();
+    if (q.isEmpty) {
+      setState(() => _filtered = List.of(_all));
+      return;
+    }
+    // Full scan for search — results span all pages.
+    final all = await _db.getAllTransactions(widget.section.id);
+    if (!mounted) return;
     setState(() {
-      _filtered = q.isEmpty
-          ? _all
-          : _all.where((t) =>
-              t.entity.toLowerCase().contains(q) ||
-              t.description.toLowerCase().contains(q) ||
-              t.amount.toString().contains(q) ||
-              (t.monthRef?.toLowerCase().contains(q) ?? false) ||
-              (t.numeroSerie?.toLowerCase().contains(q) ?? false) ||
-              (t.metodoPagamento?.toLowerCase().contains(q) ?? false) ||
-              DateFormat('dd/MM/yyyy').format(t.date).contains(q)).toList();
+      _filtered = all.where((t) =>
+          t.entity.toLowerCase().contains(q) ||
+          t.description.toLowerCase().contains(q) ||
+          t.amount.toString().contains(q) ||
+          (t.monthRef?.toLowerCase().contains(q) ?? false) ||
+          (t.numeroSerie?.toLowerCase().contains(q) ?? false) ||
+          (t.metodoPagamento?.toLowerCase().contains(q) ?? false) ||
+          DateFormat('dd/MM/yyyy').format(t.date).contains(q)).toList();
     });
   }
 
@@ -221,11 +285,14 @@ class _SectionScreenState extends State<SectionScreen>
       );
 
   // ── Action sheets ──────────────────────────────────────────────────────────
-  void _showInvoiceDetails(Transaction inv) {
+
+  /// Shows invoice detail sheet; if user taps "Actions" awaits sheet close
+  /// before opening the options sheet — avoids the Navigator race condition.
+  Future<void> _showInvoiceDetails(Transaction inv) async {
     final l   = AppLocalizations.of(context);
     final cur = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
 
-    showModalBottomSheet(
+    final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -267,17 +334,14 @@ class _SectionScreenState extends State<SectionScreen>
             Row(children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, 'close'),
                   child: Text(l.close),
                 ),
               ),
               const SizedBox(width: AppTokens.sp12),
               Expanded(
                 child: FilledButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _showInvoiceOptions(inv);
-                  },
+                  onPressed: () => Navigator.pop(context, 'actions'),
                   child: Text(l.invoiceActions),
                 ),
               ),
@@ -286,11 +350,16 @@ class _SectionScreenState extends State<SectionScreen>
         ),
       ),
     );
+    if (!mounted) return;
+    if (action == 'actions') {
+      await _showInvoiceOptions(inv);
+    }
   }
 
-  void _showInvoiceOptions(Transaction inv) {
+  /// Awaits the options sheet before acting — no synchronous pop+open chains.
+  Future<void> _showInvoiceOptions(Transaction inv) async {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet(
+    final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _Sheet(
@@ -299,53 +368,52 @@ class _SectionScreenState extends State<SectionScreen>
           _SheetOption(
             icon: Icons.edit_rounded,
             label: l.edit,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context,
-                      _slide(TransactionFormScreen(
-                          transaction: inv,
-                          sectionId: widget.section.id)))
-                  .then((_) => _refresh());
-            },
+            onTap: () => Navigator.pop(context, 'edit'),
           ),
           _SheetOption(
             icon: Icons.savings_rounded,
             label: l.reserve,
-            onTap: () {
-              Navigator.pop(context);
-              _reserveInvoice(inv);
-            },
+            onTap: () => Navigator.pop(context, 'reserve'),
           ),
           _SheetOption(
             icon: Icons.delete_rounded,
             label: l.delete,
             color: AppColors.danger,
-            onTap: () {
-              Navigator.pop(context);
-              _confirmDelete(
-                title: l.confirmDeletion,
-                body: l.confirmDeleteInvoice,
-                onConfirm: () async {
-                  await _db.deleteTransaction(inv.id);
-                  _refresh();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(l.invoiceDeletedSuccessfully),
-                      backgroundColor: AppColors.success,
-                    ));
-                  }
-                },
-              );
-            },
+            onTap: () => Navigator.pop(context, 'delete'),
           ),
         ]),
       ),
     );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await Navigator.push(context,
+          _slide(TransactionFormScreen(
+              transaction: inv, sectionId: widget.section.id)));
+      if (mounted) _refresh();
+    } else if (action == 'reserve') {
+      _reserveInvoice(inv);
+    } else if (action == 'delete') {
+      final confirmed = await _confirmDelete(
+        title: l.confirmDeletion,
+        body: l.confirmDeleteInvoice,
+      );
+      if (!mounted) return;
+      if (confirmed) {
+        await _db.deleteTransaction(inv.id);
+        _refresh();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(l.invoiceDeletedSuccessfully),
+            backgroundColor: AppColors.success,
+          ));
+        }
+      }
+    }
   }
 
-  void _showTransactionActions(Transaction t) {
+  Future<void> _showTransactionActions(Transaction t) async {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet(
+    final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _Sheet(
@@ -354,35 +422,13 @@ class _SectionScreenState extends State<SectionScreen>
           _SheetOption(
             icon: Icons.edit_rounded,
             label: l.edit,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context,
-                      _slide(TransactionFormScreen(
-                          transaction: t, sectionId: widget.section.id)))
-                  .then((_) => _refresh());
-            },
+            onTap: () => Navigator.pop(context, 'edit'),
           ),
           _SheetOption(
             icon: Icons.delete_rounded,
             label: l.delete,
             color: AppColors.danger,
-            onTap: () {
-              Navigator.pop(context);
-              _confirmDelete(
-                title: l.confirmDeletion,
-                body: l.confirmDeleteTransaction,
-                onConfirm: () async {
-                  await _db.deleteTransaction(t.id);
-                  _refresh();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(l.transactionDeletedSuccessfully),
-                      backgroundColor: AppColors.success,
-                    ));
-                  }
-                },
-              );
-            },
+            onTap: () => Navigator.pop(context, 'delete'),
           ),
           _SheetOption(
             icon: Icons.close_rounded,
@@ -392,11 +438,34 @@ class _SectionScreenState extends State<SectionScreen>
         ]),
       ),
     );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await Navigator.push(context,
+          _slide(TransactionFormScreen(
+              transaction: t, sectionId: widget.section.id)));
+      if (mounted) _refresh();
+    } else if (action == 'delete') {
+      final confirmed = await _confirmDelete(
+        title: l.confirmDeletion,
+        body: l.confirmDeleteTransaction,
+      );
+      if (!mounted) return;
+      if (confirmed) {
+        await _db.deleteTransaction(t.id);
+        _refresh();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(l.transactionDeletedSuccessfully),
+            backgroundColor: AppColors.success,
+          ));
+        }
+      }
+    }
   }
 
-  void _showReservedActions(ReservedAmount ra) {
+  Future<void> _showReservedActions(ReservedAmount ra) async {
     final l = AppLocalizations.of(context);
-    showModalBottomSheet(
+    final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _Sheet(
@@ -405,36 +474,13 @@ class _SectionScreenState extends State<SectionScreen>
           _SheetOption(
             icon: Icons.edit_rounded,
             label: l.edit,
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context,
-                      _slide(ReservedAmountFormScreen(
-                          reservedAmount: ra,
-                          sectionId: widget.section.id)))
-                  .then((_) => _refresh());
-            },
+            onTap: () => Navigator.pop(context, 'edit'),
           ),
           _SheetOption(
             icon: Icons.delete_rounded,
             label: l.delete,
             color: AppColors.danger,
-            onTap: () {
-              Navigator.pop(context);
-              _confirmDelete(
-                title: l.confirmDeletion,
-                body: l.confirmDeleteReservation,
-                onConfirm: () async {
-                  await _db.deleteReservedAmount(ra.id);
-                  _refresh();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(l.reservationDeletedSuccessfully),
-                      backgroundColor: AppColors.success,
-                    ));
-                  }
-                },
-              );
-            },
+            onTap: () => Navigator.pop(context, 'delete'),
           ),
           _SheetOption(
             icon: Icons.close_rounded,
@@ -444,16 +490,39 @@ class _SectionScreenState extends State<SectionScreen>
         ]),
       ),
     );
+    if (!mounted) return;
+    if (action == 'edit') {
+      await Navigator.push(context,
+          _slide(ReservedAmountFormScreen(
+              reservedAmount: ra, sectionId: widget.section.id)));
+      if (mounted) _refresh();
+    } else if (action == 'delete') {
+      final confirmed = await _confirmDelete(
+        title: l.confirmDeletion,
+        body: l.confirmDeleteReservation,
+      );
+      if (!mounted) return;
+      if (confirmed) {
+        await _db.deleteReservedAmount(ra.id);
+        _refresh();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(l.reservationDeletedSuccessfully),
+            backgroundColor: AppColors.success,
+          ));
+        }
+      }
+    }
   }
 
-  void _confirmDelete({
+  /// Confirmation sheet — returns true when user confirms, false otherwise.
+  Future<bool> _confirmDelete({
     required String title,
     required String body,
-    required VoidCallback onConfirm,
-  }) {
+  }) async {
     final l      = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _Sheet(
@@ -467,7 +536,7 @@ class _SectionScreenState extends State<SectionScreen>
           Row(children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.pop(context, false),
                 child: Text(l.cancel),
               ),
             ),
@@ -476,10 +545,7 @@ class _SectionScreenState extends State<SectionScreen>
               child: FilledButton(
                 style: FilledButton.styleFrom(
                     backgroundColor: AppColors.danger),
-                onPressed: () {
-                  Navigator.pop(context);
-                  onConfirm();
-                },
+                onPressed: () => Navigator.pop(context, true),
                 child: Text(l.delete),
               ),
             ),
@@ -487,6 +553,7 @@ class _SectionScreenState extends State<SectionScreen>
         ]),
       ),
     );
+    return result ?? false;
   }
 
   Future<void> _reserveInvoice(Transaction inv) async {
@@ -502,7 +569,7 @@ class _SectionScreenState extends State<SectionScreen>
       return;
     }
     await _db.insertReservedAmount(ReservedAmount(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: const Uuid().v4(),
       sectionId: widget.section.id,
       description: desc,
       amount: inv.amount,
@@ -529,6 +596,7 @@ class _SectionScreenState extends State<SectionScreen>
             final data    = snap.data;
 
             return CustomScrollView(
+              controller: _scrollCtrl,
               slivers: [
                 // ── Collapsible AppBar ─────────────────────────────────────
                 SliverAppBar(
@@ -657,6 +725,17 @@ class _SectionScreenState extends State<SectionScreen>
                   SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (_, i) {
+                        // Trailing slot: load-more indicator (only in browse mode).
+                        if (i == _filtered.length) {
+                          if (_isLoadingMore) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(
+                                  child: CircularProgressIndicator.adaptive()),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        }
                         final t = _filtered[i];
                         return TransactionListTile(
                           transaction: t,
@@ -670,7 +749,7 @@ class _SectionScreenState extends State<SectionScreen>
                           onDelete: _refresh,
                         );
                       },
-                      childCount: _filtered.length,
+                      childCount: _filtered.length + 1,
                     ),
                   ),
 
