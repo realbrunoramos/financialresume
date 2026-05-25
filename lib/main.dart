@@ -28,8 +28,8 @@ Future<void> main() async {
   // Without setLocalLocation, tz.local defaults to UTC and all scheduled
   // notifications fire at the wrong time.
   tz.initializeTimeZones();
-  final String localTz = await FlutterTimezone.getLocalTimezone();
-  tz.setLocalLocation(tz.getLocation(localTz));
+  final tzInfo = await FlutterTimezone.getLocalTimezone();
+  tz.setLocalLocation(tz.getLocation(tzInfo.identifier));
 
   await initializeDateFormatting('pt_PT', null);
   cameras = await availableCameras();
