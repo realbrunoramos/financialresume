@@ -16,8 +16,8 @@ class _AboutScreenState extends State<AboutScreen> {
   PackageInfo _packageInfo = PackageInfo(
     appName: 'Financial Resume',
     packageName: 'Financial Resume',
-    version: '2.0.2',
-    buildNumber: '1',
+    version: '',
+    buildNumber: '',
   );
 
   @override

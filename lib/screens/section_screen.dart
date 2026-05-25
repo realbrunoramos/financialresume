@@ -756,7 +756,7 @@ class _FinancialHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppTokens.sp8),
-          _Divider(),
+          const _Divider(),
           const SizedBox(height: AppTokens.sp8),
 
           // Available
@@ -816,7 +816,7 @@ class _FinancialHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppTokens.sp8),
-          _Divider(),
+          const _Divider(),
           const SizedBox(height: AppTokens.sp8),
 
           // Daily limit
@@ -858,6 +858,8 @@ class _FinancialHeader extends StatelessWidget {
 }
 
 class _Divider extends StatelessWidget {
+  const _Divider();
+
   @override
   Widget build(BuildContext context) => Container(
         height: 1,

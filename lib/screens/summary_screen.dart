@@ -59,13 +59,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
       final balance = transactions.fold<double>(0, (sum, t) => sum + (t.isCredit ? t.amount : -t.amount),);
 
-      final availableAmount = (balance - totalReserved) < 0 ? 0 : balance - totalReserved;
+      final availableAmount = (balance - totalReserved) < 0 ? 0.0 : balance - totalReserved;
 
       setState(() {
         _allTransactions = transactions;
         _allReservedAmounts = reservedAmounts;
         _totalReserved = totalReserved;
-        _availableAmount = availableAmount as double;
+        _availableAmount = availableAmount;
         _selectedMonths = _getAvailableMonths();
         _isLoading = false;
       });
@@ -99,7 +99,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     final totalExpenses = transactions.where((t) => !t.isCredit).fold<double>(0, (sum, t) => sum + t.amount);
     final balance = totalIncome - totalExpenses;
 
-    final availableAmount = (balance - _totalReserved) < 0 ? 0 : balance - _totalReserved;
+    final availableAmount = (balance - _totalReserved) < 0 ? 0.0 : balance - _totalReserved;
 
     return {
       'totalIncome': totalIncome,
