@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mailer/mailer.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
-import '../providers/transaction_provider.dart';
 import '../services/database_service.dart';
 import '../services/secure_storage_service.dart';
 import '../services/file_service.dart';
@@ -15,8 +13,6 @@ import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
 import './image_viewer_screen.dart';
 import './scan_file_screen.dart';
-import 'package:provider/provider.dart';
-
 class TransactionFormScreen extends StatefulWidget {
   final Transaction? transaction;
   final String sectionId;
@@ -90,15 +86,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   Future<void> _loadCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
+    final creds = await SecureStorageService.readEmailCredentials();
     if (mounted) {
       setState(() {
-        _email = prefs.getString('email');
-        _password = prefs.getString('password');
-        final server = prefs.getString('smtp_server') ?? 'smtp.gmail.com';
-        final port = prefs.getString('port') ?? '587';
-        _smtpServer = server;
-        _port = port;
+        _email      = creds.email;
+        _password   = creds.password;
+        _smtpServer = creds.smtpServer ?? 'smtp.gmail.com';
+        _port       = creds.smtpPort   ?? '587';
       });
     }
   }
@@ -151,12 +145,13 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('email', emailCtrl.text);
-              await prefs.setString('password', passwordCtrl.text);
+              await SecureStorageService.writeEmailCredentials(
+                email:    emailCtrl.text,
+                password: passwordCtrl.text,
+              );
               if (mounted) {
                 setState(() {
-                  _email = emailCtrl.text;
+                  _email    = emailCtrl.text;
                   _password = passwordCtrl.text;
                 });
                 Navigator.pop(context);
@@ -642,19 +637,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                 int.parse(parts[0]),
               );
               _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate);
-            } catch (e) {
-
-            }
-          }
-          if (mesAnoRef != 'UNKNOWN') {
-            try {
-              final parts = dataEmissao.split(' ');
-              _selectedDate = DateTime(
-                int.parse(parts[2]),
-                int.parse(parts[1]),
-                int.parse(parts[0]),
-              );
-              _monthRefController.text = DateFormat('MM/yyyy').format(_selectedDate);
             } catch (e) {
 
             }

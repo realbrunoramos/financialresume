@@ -34,23 +34,33 @@ Future<void> main() async {
   runApp(MyApp(cameras: cameras,));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final List<CameraDescription> cameras;
   const MyApp({super.key, required this.cameras});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Schedule once at startup — not inside build to avoid repeat on rebuild.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _scheduleDueDateNotifications(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => TransactionProvider()),
-        ChangeNotifierProvider(create: (context) => LanguageProvider()),
+        ChangeNotifierProvider(create: (_) => TransactionProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
       child: Consumer<LanguageProvider>(
         builder: (context, languageProvider, child) {
-
-          _scheduleDueDateNotifications(context);
-
-
           return MaterialApp(
             title: 'Financial Resume',
             theme: appTheme,
@@ -80,6 +90,12 @@ class MyApp extends StatelessWidget {
   }
 }
 Future<void> _scheduleDueDateNotifications(BuildContext context) async {
+  // Capture localised strings before any await to avoid
+  // use_build_context_synchronously across async gaps.
+  final l = AppLocalizations.of(context);
+  final warningText = l.invoiceDueWarning;
+  final daysText    = l.days;
+
   final notificationService = NotificationService();
   final dbService = DatabaseService();
   final sections = await dbService.getAllSections();
@@ -112,20 +128,16 @@ Future<void> _scheduleDueDateNotifications(BuildContext context) async {
 
           final notificationId = int.parse(numericId);
 
-          print('''
-             Agendando notificação:
-               ID: $notificationId
-               Entidade: ${invoice.entity}
-               Seção: ${section.name}
-               Vencimento: $dueDate
-               Dias restantes: $difference
-               Data agendada: $actualNotificationDate
-            ''');
+          assert(() {
+            // ignore: avoid_print
+            print('Notif #$notificationId | ${invoice.entity} | ${section.name} | $dueDate | ${difference}d | $actualNotificationDate');
+            return true;
+          }());
 
           await notificationService.scheduleNotification(
             id: notificationId,
             title: section.name,
-            body: "${AppLocalizations.of(context).invoiceDueWarning} ${invoice.entity} $difference ${AppLocalizations.of(context).days}!",
+            body: "$warningText ${invoice.entity} $difference $daysText!",
             scheduledDate: actualNotificationDate,
           );
         }
