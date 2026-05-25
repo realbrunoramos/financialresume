@@ -263,6 +263,39 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
   }
 
+  /// Total balance across ALL sections (excludes unpaid invoices, same rule
+  /// as [getAllTransactions]).  Single SQL query — O(1) instead of O(N).
+  Future<double> getTotalBalance() async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT COALESCE(
+        SUM(CASE WHEN isCredit = 1 THEN amount ELSE -amount END), 0
+      ) AS total
+      FROM $transactionTable
+      WHERE NOT (docType = '2' AND paid = 0)
+    ''');
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  /// Count + balance for a single section in one query.
+  Future<({int count, double balance})> getSectionStats(String sectionId) async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT
+        COUNT(*) AS cnt,
+        COALESCE(
+          SUM(CASE WHEN isCredit = 1 THEN amount ELSE -amount END), 0
+        ) AS balance
+      FROM $transactionTable
+      WHERE sectionId = ?
+        AND NOT (docType = '2' AND paid = 0)
+    ''', [sectionId]);
+    return (
+      count:   (result.first['cnt']     as num?)?.toInt()    ?? 0,
+      balance: (result.first['balance'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
   Future<bool> existReserve(String reverseDescrip) async {
     final db = await database;
     final maps = await db.query(

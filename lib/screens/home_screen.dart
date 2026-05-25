@@ -227,11 +227,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   // ── Stats de secção ───────────────────────────────────────────────────────
   Future<_SectionStats> _loadStats(String sectionId) async {
-    final txs = await _db.getAllTransactions(sectionId);
-    final balance = txs.fold<double>(
-      0, (s, t) => t.isCredit ? s + t.amount : s - t.amount,
-    );
-    return _SectionStats(count: txs.length, balance: balance);
+    final s = await _db.getSectionStats(sectionId);
+    return _SectionStats(count: s.count, balance: s.balance);
   }
 
   @override
@@ -426,18 +423,16 @@ class _TotalSummaryHeaderState extends State<_TotalSummaryHeader> {
   @override
   void initState() {
     super.initState();
-    _totalFuture = _calcTotal();
+    _totalFuture = widget.db.getTotalBalance();
   }
 
-  Future<double> _calcTotal() async {
-    double total = 0;
-    for (final s in widget.sections) {
-      final txs = await widget.db.getAllTransactions(s.id);
-      total += txs.fold<double>(
-        0, (acc, t) => t.isCredit ? acc + t.amount : acc - t.amount,
-      );
+  @override
+  void didUpdateWidget(_TotalSummaryHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Refresh whenever the section list changes (add / delete / rename).
+    if (oldWidget.sections != widget.sections) {
+      setState(() => _totalFuture = widget.db.getTotalBalance());
     }
-    return total;
   }
 
   @override

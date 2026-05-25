@@ -1,9 +1,9 @@
 class Section {
-  String id;
-  String name;
-  DateTime createdAt;
+  final String id;
+  final String name;
+  final DateTime createdAt;
 
-  Section({
+  const Section({
     required this.id,
     required this.name,
     required this.createdAt,
