@@ -52,7 +52,7 @@ class FileService {
 
       // Adjust crop dimensions to stay within image bounds
       cropX = cropX.clamp(0, processedImage.width - 1);
-      //cropwards: cropY = cropY.clamp(0, processedImage.height - 1);
+      cropY = cropY.clamp(0, processedImage.height - 1);
       cropWidth = cropWidth.clamp(1, processedImage.width - cropX);
       cropHeight = cropHeight.clamp(1, processedImage.height - cropY);
 

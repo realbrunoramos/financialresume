@@ -131,7 +131,7 @@ class DatabaseService {
   }
 
   Future<void> _upgradeToVersion13(Database db) async {
-    debugPrint("Upgrading to version 13 - Database final structure");
+    // Version 13: schema finalised in _createTables — no migration needed.
   }
 
   Future<void> saveSetting(String key, String value) async {
@@ -228,88 +228,13 @@ class DatabaseService {
     }
   }
 
-  Future<void> debugTableStructure() async {
+Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
-    try {
-      final result = await db.rawQuery('PRAGMA table_info($transactionTable)');
-      for (final column in result) {
-        debugPrint("${column['name']} (${column['type']}) - PK: ${column['pk']}");
-      }
-      final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM $transactionTable');
-      debugPrint("Total de registros: ${countResult.first['count']}");
-    } catch (e) {
-      debugPrint("Erro ao verificar estrutura da tabela: $e");
-    }
-  }
-
-  Future<void> addTransaction(trns.Transaction transaction) async {
-    final db = await database;
-
-    debugPrint("INICIANDO SALVAMENTO DA TRANSAÇÃO:");
-    debugPrint("   - ID: ${transaction.id}");
-    debugPrint("   - Entity: ${transaction.entity}");
-    debugPrint("   - DocType: ${transaction.docType}");
-    debugPrint("   - Paid: ${transaction.paid}");
-    debugPrint("   - SectionId: ${transaction.sectionId}");
-    debugPrint("   - NumeroSerie: ${transaction.numeroSerie}");
-    debugPrint("   - MetodoPagamento: ${transaction.metodoPagamento}");
-
-    try {
-      await _addMissingColumns(db);
-      final map = transaction.toMap();
-      await db.insert(
-          transactionTable,
-          map,
-          conflictAlgorithm: ConflictAlgorithm.replace
-      );
-
-      final verification = await db.query(
-        transactionTable,
-        where: 'id = ?',
-        whereArgs: [transaction.id],
-      );
-
-      if (verification.isNotEmpty) {
-        debugPrint("TRANSAÇÃO SALVA E VERIFICADA COM SUCESSO!");
-      } else {
-        debugPrint("VERIFICAÇÃO FALHOU - Transação não encontrada após insert");
-      }
-
-    } catch (e, stackTrace) {
-      debugPrint("ERRO CRÍTICO no banco de dados:");
-      debugPrint("   Erro: $e");
-      debugPrint("   StackTrace: $stackTrace");
-
-      await _emergencySaveTransaction(db, transaction);
-    }
-  }
-
-  Future<void> _emergencySaveTransaction(Database db, trns.Transaction transaction) async {
-    debugPrint("TENTANDO SALVAMENTO DE EMERGÊNCIA...");
-
-    try {
-      final emergencyMap = {
-        'id': transaction.id,
-        'amount': transaction.amount,
-        'entity': transaction.entity,
-        'description': transaction.description,
-        'isCredit': transaction.isCredit ? 1 : 0,
-        'date': transaction.date.toIso8601String(),
-        'receiptPaths': transaction.receiptPaths.join(','),
-        'sectionId': transaction.sectionId,
-        'docType': transaction.docType,
-        'monthRef': transaction.monthRef,
-        'dueDate': transaction.dueDate?.toIso8601String(),
-        'paid': transaction.paid ? 1 : 0,
-      };
-      await db.insert(
-          transactionTable,
-          emergencyMap,
-          conflictAlgorithm: ConflictAlgorithm.replace
-      );
-    } catch (e) {
-      rethrow;
-    }
+    await db.insert(
+      transactionTable,
+      transaction.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> updateTransaction(trns.Transaction transaction) async {
@@ -362,10 +287,6 @@ class DatabaseService {
     ORDER BY date DESC
   ''', [sectionId]);
 
-    for (final map in maps) {
-      debugPrint("   - ${map['entity']} (ID: ${map['id']})");
-    }
-
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
   }
 
@@ -393,21 +314,6 @@ class DatabaseService {
 
   // Note: _upgradeToVersion2 … _upgradeToVersion8 were removed.
   // DB is now created fresh from v13 schema in _createDatabase — see git history.
-
-  Future<bool> verifyTransactionSaved(String transactionId) async {
-    final db = await database;
-    final result = await db.query(
-      transactionTable,
-      where: 'id = ?',
-      whereArgs: [transactionId],
-    );
-    return result.isNotEmpty;
-  }
-
-  Future<List<Map<String, dynamic>>> debugGetAllTransactions() async {
-    final db = await database;
-    return await db.query(transactionTable);
-  }
 
   Future<void> addSection(Section section) async {
     final db = await database;

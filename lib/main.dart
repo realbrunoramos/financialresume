@@ -97,6 +97,10 @@ Future<void> _scheduleDueDateNotifications(BuildContext context) async {
   final daysText    = l.days;
 
   final notificationService = NotificationService();
+  // Cancel any previously scheduled notifications before rescheduling,
+  // so paid invoices or changed due dates never fire stale alerts.
+  await notificationService.cancelAllNotifications();
+
   final dbService = DatabaseService();
   final sections = await dbService.getAllSections();
 
@@ -127,12 +131,6 @@ Future<void> _scheduleDueDateNotifications(BuildContext context) async {
           }
 
           final notificationId = int.parse(numericId);
-
-          assert(() {
-            // ignore: avoid_print
-            print('Notif #$notificationId | ${invoice.entity} | ${section.name} | $dueDate | ${difference}d | $actualNotificationDate');
-            return true;
-          }());
 
           await notificationService.scheduleNotification(
             id: notificationId,
