@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/section.dart';
@@ -125,12 +126,12 @@ class DatabaseService {
         )
       ''');
     } catch (e) {
-      print("Settings table already exists: $e");
+      debugPrint("Settings table already exists: $e");
     }
   }
 
   Future<void> _upgradeToVersion13(Database db) async {
-    print("Upgrading to version 13 - Database final structure");
+    debugPrint("Upgrading to version 13 - Database final structure");
   }
 
   Future<void> saveSetting(String key, String value) async {
@@ -232,31 +233,31 @@ class DatabaseService {
     try {
       final result = await db.rawQuery('PRAGMA table_info($transactionTable)');
       for (final column in result) {
-        print("${column['name']} (${column['type']}) - PK: ${column['pk']}");
+        debugPrint("${column['name']} (${column['type']}) - PK: ${column['pk']}");
       }
       final countResult = await db.rawQuery('SELECT COUNT(*) as count FROM $transactionTable');
-      print("Total de registros: ${countResult.first['count']}");
+      debugPrint("Total de registros: ${countResult.first['count']}");
     } catch (e) {
-      print("Erro ao verificar estrutura da tabela: $e");
+      debugPrint("Erro ao verificar estrutura da tabela: $e");
     }
   }
 
   Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
 
-    print("INICIANDO SALVAMENTO DA TRANSAÇÃO:");
-    print("   - ID: ${transaction.id}");
-    print("   - Entity: ${transaction.entity}");
-    print("   - DocType: ${transaction.docType}");
-    print("   - Paid: ${transaction.paid}");
-    print("   - SectionId: ${transaction.sectionId}");
-    print("   - NumeroSerie: ${transaction.numeroSerie}");
-    print("   - MetodoPagamento: ${transaction.metodoPagamento}");
+    debugPrint("INICIANDO SALVAMENTO DA TRANSAÇÃO:");
+    debugPrint("   - ID: ${transaction.id}");
+    debugPrint("   - Entity: ${transaction.entity}");
+    debugPrint("   - DocType: ${transaction.docType}");
+    debugPrint("   - Paid: ${transaction.paid}");
+    debugPrint("   - SectionId: ${transaction.sectionId}");
+    debugPrint("   - NumeroSerie: ${transaction.numeroSerie}");
+    debugPrint("   - MetodoPagamento: ${transaction.metodoPagamento}");
 
     try {
       await _addMissingColumns(db);
       final map = transaction.toMap();
-      final result = await db.insert(
+      await db.insert(
           transactionTable,
           map,
           conflictAlgorithm: ConflictAlgorithm.replace
@@ -269,22 +270,22 @@ class DatabaseService {
       );
 
       if (verification.isNotEmpty) {
-        print("TRANSAÇÃO SALVA E VERIFICADA COM SUCESSO!");
+        debugPrint("TRANSAÇÃO SALVA E VERIFICADA COM SUCESSO!");
       } else {
-        print("VERIFICAÇÃO FALHOU - Transação não encontrada após insert");
+        debugPrint("VERIFICAÇÃO FALHOU - Transação não encontrada após insert");
       }
 
     } catch (e, stackTrace) {
-      print("ERRO CRÍTICO no banco de dados:");
-      print("   Erro: $e");
-      print("   StackTrace: $stackTrace");
+      debugPrint("ERRO CRÍTICO no banco de dados:");
+      debugPrint("   Erro: $e");
+      debugPrint("   StackTrace: $stackTrace");
 
       await _emergencySaveTransaction(db, transaction);
     }
   }
 
   Future<void> _emergencySaveTransaction(Database db, trns.Transaction transaction) async {
-    print("TENTANDO SALVAMENTO DE EMERGÊNCIA...");
+    debugPrint("TENTANDO SALVAMENTO DE EMERGÊNCIA...");
 
     try {
       final emergencyMap = {
@@ -301,7 +302,7 @@ class DatabaseService {
         'dueDate': transaction.dueDate?.toIso8601String(),
         'paid': transaction.paid ? 1 : 0,
       };
-      final result = await db.insert(
+      await db.insert(
           transactionTable,
           emergencyMap,
           conflictAlgorithm: ConflictAlgorithm.replace
@@ -362,7 +363,7 @@ class DatabaseService {
   ''', [sectionId]);
 
     for (final map in maps) {
-      print("   - ${map['entity']} (ID: ${map['id']})");
+      debugPrint("   - ${map['entity']} (ID: ${map['id']})");
     }
 
     return maps.map((map) => trns.Transaction.fromMap(map)).toList();
@@ -390,82 +391,8 @@ class DatabaseService {
     _database = null;
   }
 
-  Future<void> _upgradeToVersion2(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $sectionTable (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        createdAt TEXT
-      )
-    ''');
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN sectionId TEXT');
-
-    final defaultSection = Section(
-      id: 'default_section',
-      name: 'Transações Padrão',
-      createdAt: DateTime.now(),
-    );
-    await db.insert(sectionTable, defaultSection.toMap());
-    await db.execute('UPDATE $transactionTable SET sectionId = ?', ['default_section']);
-  }
-
-  Future<void> _upgradeToVersion3(Database db) async {
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN docType TEXT');
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN monthRef TEXT');
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN dueDate TEXT');
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN paid INTEGER DEFAULT 0');
-
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $paidMonthsTable (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        monthRef TEXT UNIQUE,
-        addedAt TEXT
-      )
-    ''');
-  }
-
-  Future<void> _upgradeToVersion5(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $emailsSentTable (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        entity TEXT,
-        recipient TEXT,
-        subject TEXT,
-        body TEXT,
-        sentAt TEXT
-      )
-    ''');
-  }
-
-  Future<void> _upgradeToVersion6(Database db) async {
-    await db.execute('ALTER TABLE $emailsSentTable ADD COLUMN emission_date TEXT');
-    await db.execute('ALTER TABLE $transactionTable ADD COLUMN entity TEXT DEFAULT ""');
-  }
-
-  Future<void> _upgradeToVersion7(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $reservedAmountsTable (
-        id TEXT PRIMARY KEY,
-        sectionId TEXT NOT NULL,
-        description TEXT NOT NULL,
-        amount REAL NOT NULL,
-        createdAt INTEGER NOT NULL,
-        FOREIGN KEY (sectionId) REFERENCES $sectionTable(id)
-      )
-    ''');
-  }
-
-  Future<void> _upgradeToVersion8(Database db) async {
-    try {
-      await db.execute('ALTER TABLE $transactionTable ADD COLUMN numeroSerie TEXT');
-    } catch (e) {
-    }
-
-    try {
-      await db.execute('ALTER TABLE $transactionTable ADD COLUMN metodoPagamento TEXT');
-    } catch (e) {
-    }
-  }
+  // Note: _upgradeToVersion2 … _upgradeToVersion8 were removed.
+  // DB is now created fresh from v13 schema in _createDatabase — see git history.
 
   Future<bool> verifyTransactionSaved(String transactionId) async {
     final db = await database;

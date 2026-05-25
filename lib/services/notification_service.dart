@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -28,7 +29,7 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse:
           (NotificationResponse notificationResponse) async {
-        print('Notificação clicada: ${notificationResponse.payload}');
+        debugPrint('Notificação clicada: ${notificationResponse.payload}');
       },
     );
 
@@ -77,7 +78,7 @@ class NotificationService {
         payload: payload,
       );
     } catch (e) {
-      print('Erro ao mostrar notificação: $e');
+      debugPrint('Erro ao mostrar notificação: $e');
     }
   }
 
@@ -93,7 +94,7 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
     } catch (e) {
-      print('Erro ao agendar notificação: $e');
+      debugPrint('Erro ao agendar notificação: $e');
     }
   }
 

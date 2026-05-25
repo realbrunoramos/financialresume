@@ -275,6 +275,7 @@ class AppLocalizations {
       'retry': 'Retry',
       'novaReserva': 'New Booking',
       'editarReserva': 'Edit Booking',
+      'availableBalance': 'Available balance',
       'descricao': 'Description',
       'insiraDescricao': 'Please enter a description',
       'valorAReservar': 'Amount to Book',
@@ -590,6 +591,7 @@ class AppLocalizations {
       'retry': 'Repetir',
       'novaReserva': 'Nova Reserva',
       'editarReserva': 'Editar Reserva',
+      'availableBalance': 'Saldo disponível',
       'descricao': 'Descrição',
       'insiraDescricao': 'Por favor, insira uma descrição',
       'valorAReservar': 'Valor a Reservar',
@@ -905,6 +907,7 @@ class AppLocalizations {
       'retry': 'Reintentar',
       'novaReserva': 'Nueva Reserva',
       'editarReserva': 'Editar Reserva',
+      'availableBalance': 'Saldo disponible',
       'descricao': 'Descripción',
       'insiraDescricao': 'Por favor, introduca una descripción',
       'valorAReservar': 'Valor a Reservar',
@@ -1220,6 +1223,7 @@ class AppLocalizations {
       'retry': 'Réessayer',
       'novaReserva': 'Nouvelle réservation',
       'editarReserva': 'Modifier la réservation',
+      'availableBalance': 'Solde disponible',
       'descricao': 'Description',
       'insiraDescricao': 'Veuillez entrer une description',
       'valorAReservar': 'Montant à réserver',
@@ -1535,6 +1539,7 @@ class AppLocalizations {
       'retry': 'Повторить',
       'novaReserva': 'Новый резерв',
       'editarReserva': 'Редактировать резерв',
+      'availableBalance': 'Доступный баланс',
       'descricao': 'Описание',
       'insiraDescricao': 'Пожалуйста, введите описание',
       'valorAReservar': 'Сумма для резерва',
@@ -1850,6 +1855,7 @@ class AppLocalizations {
       'retry': '重试',
       'novaReserva': '新保留',
       'editarReserva': '编辑保留',
+      'availableBalance': '可用余额',
       'descricao': '描述',
       'insiraDescricao': '请输入描述',
       'valorAReservar': '保留金额',
@@ -2165,6 +2171,7 @@ class AppLocalizations {
       'retry': 'Riprova',
       'novaReserva': 'Nuova prenotazione',
       'editarReserva': 'Modifica prenotazione',
+      'availableBalance': 'Saldo disponibile',
       'descricao': 'Descrizione',
       'insiraDescricao': 'Si prega di inserire una descrizione',
       'valorAReservar': 'Importo da prenotare',
@@ -2499,6 +2506,7 @@ class AppLocalizations {
   String get enterAmount => _getText('insiraValor')!;
   String get enterValidAmount => _getText('insiraValorValido')!;
   String get newReserve => _getText('novaReserva')!;
+  String get availableBalance => _getText('availableBalance')!;
   String get valorAReservar => _getText('valorAReservar')!;
   String get faturaTransacao => _getText('faturaTransacao')!;
   String get visualizarFatura => _getText('visualizarFatura')!;

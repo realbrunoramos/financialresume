@@ -133,25 +133,84 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _deleteSection(Section section) async {
-    final loc = AppLocalizations.of(context);
-    final confirm = await showDialog<bool>(
+    final loc    = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final confirm = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(loc.deleteSection),
-        content: Text(
-          '${loc.deleteSectionConfirmation} ${loc.thisActionCannotBeUndone}',
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(AppTokens.sp12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCard : AppColors.white,
+            borderRadius: BorderRadius.circular(AppTokens.radius24),
+          ),
+          padding: const EdgeInsets.all(AppTokens.sp20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBorder : AppColors.grey200,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppTokens.sp16),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(AppTokens.sp8),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withAlpha(24),
+                    borderRadius: BorderRadius.circular(AppTokens.radius8),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded,
+                      color: AppColors.danger, size: 20),
+                ),
+                const SizedBox(width: AppTokens.sp12),
+                Expanded(
+                  child: Text(
+                    loc.deleteSection,
+                    style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.darkText : AppColors.dark,
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: AppTokens.sp12),
+              Text(
+                '${loc.deleteSectionConfirmation} ${loc.thisActionCannotBeUndone}',
+                style: TextStyle(
+                  fontSize: 14, height: 1.5,
+                  color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+                ),
+              ),
+              const SizedBox(height: AppTokens.sp20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: Text(loc.cancel),
+                  ),
+                ),
+                const SizedBox(width: AppTokens.sp12),
+                Expanded(
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.danger),
+                    onPressed: () => Navigator.pop(context, true),
+                    child: Text(loc.delete),
+                  ),
+                ),
+              ]),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(loc.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(loc.delete),
-          ),
-        ],
       ),
     );
 

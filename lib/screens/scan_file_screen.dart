@@ -13,8 +13,8 @@ import 'package:path_provider/path_provider.dart';
 import '../l10n/app_localizations.dart';
 import '../services/database_service.dart';
 import '../services/secure_storage_service.dart';
-import '../services/notification_service.dart';
 import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 
 
 class TextBasedDocumentImageProcessor {
@@ -743,33 +743,93 @@ class _ScanFileScreenState extends State<ScanFileScreen> {
   }
 
   void _showAddMorePagesDialog() {
-    showDialog(
+    final l      = AppLocalizations.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final count  = _allScannedImages.length;
+
+    showModalBottomSheet<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context).scannedDocument),
-        content: Text(
-          _allScannedImages.length == 1
-              ? AppLocalizations.of(context).addMorePagesQuestion
-              : '${AppLocalizations.of(context).documentWithPagesAddMoreQuestion} ${_allScannedImages.length} ${AppLocalizations.of(context).documentWithPagesAddMoreQuestion2}',
+      backgroundColor: Colors.transparent,
+      builder: (_) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(AppTokens.sp12),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCard : AppColors.white,
+            borderRadius: BorderRadius.circular(AppTokens.radius24),
+          ),
+          padding: const EdgeInsets.all(AppTokens.sp20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36, height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkBorder : AppColors.grey200,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppTokens.sp16),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(AppTokens.sp8),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withAlpha(24),
+                    borderRadius: BorderRadius.circular(AppTokens.radius8),
+                  ),
+                  child: const Icon(Icons.document_scanner_rounded,
+                      color: AppColors.info, size: 20),
+                ),
+                const SizedBox(width: AppTokens.sp12),
+                Expanded(
+                  child: Text(
+                    l.scannedDocument,
+                    style: TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.darkText : AppColors.dark,
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: AppTokens.sp12),
+              Text(
+                count == 1
+                    ? l.addMorePagesQuestion
+                    : '${l.documentWithPagesAddMoreQuestion} $count ${l.documentWithPagesAddMoreQuestion2}',
+                style: TextStyle(
+                  fontSize: 14, height: 1.5,
+                  color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+                ),
+              ),
+              const SizedBox(height: AppTokens.sp20),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _retryCapture();
+                    },
+                    icon: const Icon(Icons.add_a_photo_rounded, size: 18),
+                    label: Text('${l.documentWithPagesAddMoreQuestion} $count'),
+                  ),
+                ),
+                const SizedBox(width: AppTokens.sp12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _goToTransactionForm();
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 18),
+                    label: Text('${l.confirmWithPageCount} ($count ${l.confirmWithPageCount2})'),
+                  ),
+                ),
+              ]),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _retryCapture();
-            },
-            child: Text("${
-              AppLocalizations.of(context).documentWithPagesAddMoreQuestion
-            } ${_allScannedImages.length} ${AppLocalizations.of(context).documentWithPagesAddMoreQuestion2}"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _goToTransactionForm();
-            },
-            child: Text('${AppLocalizations.of(context).confirmWithPageCount} (${_allScannedImages.length} ${AppLocalizations.of(context).confirmWithPageCount2})'),
-          ),
-        ],
       ),
     );
   }
