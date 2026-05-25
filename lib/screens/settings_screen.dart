@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/language_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/biometric_service.dart';
 import '../services/database_service.dart';
 import '../services/secure_storage_service.dart';
 import '../theme/colors.dart';
@@ -21,8 +22,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseService _db = DatabaseService();
   final TextEditingController _apiKeyCtrl = TextEditingController();
   String _lang = 'pt';
-  bool _loading = true;
-  bool _obscure = true;
+  bool _loading           = true;
+  bool _obscure           = true;
+  bool _biometricEnabled  = false;
+  bool _biometricAvailable = false;
 
   static const Map<String, String> _languages = {
     'pt': 'Português',
@@ -48,8 +51,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final apiKey  = await SecureStorageService.readApiKey();
-      final langKey = await _db.getSetting('language');
+      final apiKey   = await SecureStorageService.readApiKey();
+      final langKey  = await _db.getSetting('language');
+      final bioAvail = await BiometricService.isAvailable();
+      final bioEnab  = await BiometricService.isEnabled();
 
       if (apiKey != null) _apiKeyCtrl.text = apiKey;
 
@@ -57,6 +62,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _lang = (langKey != null && _languages.containsKey(langKey))
             ? langKey
             : 'pt';
+        _biometricAvailable = bioAvail;
+        _biometricEnabled   = bioEnab;
         _loading = false;
       });
 
@@ -463,7 +470,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: AppTokens.sp28),
+                const SizedBox(height: AppTokens.sp20),
+
+                // ── Security Section ───────────────────────────────────────
+                if (_biometricAvailable) ...[
+                  _SectionLabel(label: l.biometricLock, isDark: isDark),
+                  _SettingsCard(
+                    isDark: isDark,
+                    child: SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppTokens.sp16,
+                          vertical: AppTokens.sp4),
+                      secondary: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withAlpha(isDark ? 40 : 20),
+                          borderRadius: BorderRadius.circular(AppTokens.radius8),
+                        ),
+                        child: const Icon(Icons.fingerprint_rounded,
+                            color: AppColors.info, size: 18),
+                      ),
+                      title: Text(l.biometricLock,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.darkText : AppColors.dark,
+                          )),
+                      subtitle: Text(l.biometricReason,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? AppColors.darkSubtext
+                                : AppColors.grey500,
+                          )),
+                      value: _biometricEnabled,
+                      activeThumbColor: AppColors.info,
+                      activeTrackColor: AppColors.info.withAlpha(100),
+                      onChanged: (v) async {
+                        await BiometricService.setEnabled(enabled: v);
+                        setState(() => _biometricEnabled = v);
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppTokens.sp20),
+                ],
 
                 // ── Save button ────────────────────────────────────────────
                 SizedBox(

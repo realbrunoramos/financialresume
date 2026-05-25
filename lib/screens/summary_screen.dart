@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math' as math;
+import 'package:fl_chart/fl_chart.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1615,6 +1616,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       ]),
                     ),
 
+                    // Monthly bar chart
+                    _buildMonthlyBarChart(),
+
                     // Transactions data table
                     Expanded(
                       child: Container(
@@ -1640,6 +1644,192 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
     );
   }
+
+  // ── Monthly income vs expense bar chart ───────────────────────────────────
+  Widget _buildMonthlyBarChart() {
+    if (_allTransactions.isEmpty) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l      = AppLocalizations.of(context);
+
+    // Take last 6 months from all transactions (ignoring month filter).
+    final monthly = _groupTransactionsByMonth(_allTransactions);
+    final keys = (monthly.keys.toList()..sort())
+        .reversed
+        .take(6)
+        .toList()
+        .reversed
+        .toList();
+    if (keys.isEmpty) return const SizedBox.shrink();
+
+    double maxY = 0;
+    final groups = keys.asMap().entries.map((entry) {
+      final i    = entry.key;
+      final key  = entry.value;
+      final txns = monthly[key]!;
+
+      final income  = txns.where((t) =>  t.isCredit).fold<double>(0, (s, t) => s + t.amount);
+      final expense = txns.where((t) => !t.isCredit).fold<double>(0, (s, t) => s + t.amount);
+      maxY = math.max(maxY, math.max(income, expense));
+
+      return BarChartGroupData(
+        x: i,
+        barsSpace: 3,
+        barRods: [
+          BarChartRodData(
+            toY: income,
+            color: AppColors.success,
+            width: 9,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(4)),
+          ),
+          BarChartRodData(
+            toY: expense,
+            color: AppColors.danger,
+            width: 9,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(4)),
+          ),
+        ],
+      );
+    }).toList();
+
+    String shortAmount(double v) {
+      if (v >= 1000) return '€${(v / 1000).toStringAsFixed(1)}k';
+      return '€${v.toStringAsFixed(0)}';
+    }
+
+    final subtleColor =
+        isDark ? AppColors.darkSubtext : AppColors.grey400;
+
+    return Container(
+      height: 196,
+      margin: const EdgeInsets.fromLTRB(
+          AppTokens.sp16, AppTokens.sp8, AppTokens.sp16, 0),
+      padding: const EdgeInsets.fromLTRB(
+          AppTokens.sp8, AppTokens.sp12, AppTokens.sp12, AppTokens.sp4),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.white,
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        border: Border.all(
+            color: isDark ? AppColors.darkBorder : AppColors.grey100),
+        boxShadow: isDark ? null : AppTokens.shadowSm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header + legend
+          Padding(
+            padding: const EdgeInsets.only(
+                left: AppTokens.sp8, bottom: AppTokens.sp8),
+            child: Row(children: [
+              Text(l.monthlyChart,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color:
+                        isDark ? AppColors.darkText : AppColors.dark,
+                    letterSpacing: -0.2,
+                  )),
+              const Spacer(),
+              _dot(AppColors.success),
+              const SizedBox(width: 4),
+              Text(l.income,
+                  style: TextStyle(fontSize: 10, color: subtleColor)),
+              const SizedBox(width: 8),
+              _dot(AppColors.danger),
+              const SizedBox(width: 4),
+              Text(l.expenses,
+                  style: TextStyle(fontSize: 10, color: subtleColor)),
+            ]),
+          ),
+
+          // Bar chart
+          Expanded(
+            child: BarChart(
+              BarChartData(
+                maxY: maxY > 0 ? maxY * 1.2 : 100,
+                barGroups: groups,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: isDark
+                        ? AppColors.darkBorder.withAlpha(60)
+                        : AppColors.grey100,
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 46,
+                      getTitlesWidget: (value, _) => Text(
+                        shortAmount(value),
+                        style: TextStyle(fontSize: 8, color: subtleColor),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, _) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= keys.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final date =
+                            DateFormat('yyyy-MM').parse(keys[idx]);
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            DateFormat('MMM', l.monthName).format(date),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w500,
+                              color: subtleColor,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) =>
+                        isDark ? AppColors.darkSurface : AppColors.dark,
+                    getTooltipItem: (group, _, rod, rodIndex) {
+                      final label =
+                          rodIndex == 0 ? l.income : l.expenses;
+                      return BarTooltipItem(
+                        '$label\n€${rod.toY.toStringAsFixed(2)}',
+                        const TextStyle(
+                            color: AppColors.white, fontSize: 11),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dot(Color color) => Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
 
   Widget _buildQuickStatCard(
       String title, double value, Color color, IconData icon) {

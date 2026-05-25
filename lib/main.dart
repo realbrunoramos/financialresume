@@ -8,11 +8,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'screens/home_screen.dart';
 import 'theme/theme.dart';
 import 'l10n/app_localizations.dart';
+import 'services/biometric_service.dart';
 import 'services/database_service.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
+import 'theme/colors.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -93,13 +95,122 @@ class _MyAppState extends State<MyApp> {
               Locale('zh'),
               Locale('it'),
             ],
-            home: const HomeScreen(),
+            home: const BiometricGate(),
           );
         },
       ),
     );
   }
 }
+// ── Biometric lock gate ───────────────────────────────────────────────────────
+// Sits between the app shell and HomeScreen.  When biometric lock is enabled
+// in Settings it prompts the user to authenticate on cold start and on
+// foreground resume.  If biometric hardware is unavailable, or the setting is
+// off, it passes straight through to HomeScreen.
+class BiometricGate extends StatefulWidget {
+  const BiometricGate({super.key});
+
+  @override
+  State<BiometricGate> createState() => _BiometricGateState();
+}
+
+class _BiometricGateState extends State<BiometricGate>
+    with WidgetsBindingObserver {
+  bool _isLocked      = true;
+  bool _isChecking    = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkAndAuthenticate();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isLocked) {
+      _checkAndAuthenticate();
+    }
+  }
+
+  Future<void> _checkAndAuthenticate() async {
+    final enabled = await BiometricService.isEnabled();
+    if (!enabled) {
+      if (mounted) setState(() { _isLocked = false; _isChecking = false; });
+      return;
+    }
+    await _doAuthenticate();
+  }
+
+  Future<void> _doAuthenticate() async {
+    if (!mounted) return;
+    setState(() => _isChecking = true);
+    final l       = AppLocalizations.of(context);
+    final success = await BiometricService.authenticate(
+      localizedReason: l.biometricReason,
+    );
+    if (mounted) {
+      setState(() {
+        _isLocked  = !success;
+        _isChecking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator.adaptive()),
+      );
+    }
+    if (_isLocked) {
+      final l      = AppLocalizations.of(context);
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Scaffold(
+        backgroundColor:
+            isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_rounded,
+                  size: 64,
+                  color: isDark ? AppColors.darkSubtext : AppColors.grey400),
+              const SizedBox(height: 24),
+              Text(l.biometricLock,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.darkText : AppColors.dark,
+                  )),
+              const SizedBox(height: 8),
+              Text(l.biometricReason,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+                  )),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                onPressed: _doAuthenticate,
+                icon: const Icon(Icons.fingerprint_rounded),
+                label: Text(l.unlock),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return const HomeScreen();
+  }
+}
+
 Future<void> _scheduleDueDateNotifications(BuildContext context) async {
   // Capture localised strings before any await to avoid
   // use_build_context_synchronously across async gaps.

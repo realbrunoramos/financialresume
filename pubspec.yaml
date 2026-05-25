@@ -35,6 +35,8 @@ dependencies:
     sdk: flutter
   flutter_native_splash: ^2.4.6
   flutter_timezone: ^1.0.4
+  fl_chart: ^0.69.0
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

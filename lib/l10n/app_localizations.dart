@@ -314,6 +314,10 @@ class AppLocalizations {
       'themeSystem': 'System',
       'themeDark': 'Dark',
       'basicOcrExtraction': 'Basic extraction (no Gemini API)',
+      'monthlyChart': 'Monthly overview',
+      'biometricLock': 'Biometric Lock',
+      'biometricReason': 'Authenticate to open Financial Resume',
+      'unlock': 'Unlock',
       'errorSavingSettings': 'Error saving settings',
       'apiKeyRemoved': 'API key removed!',
       'apiKeyCopied': 'API key copied to clipboard!',
@@ -640,6 +644,10 @@ class AppLocalizations {
       'themeSystem': 'Sistema',
       'themeDark': 'Escuro',
       'basicOcrExtraction': 'Extração básica (sem API Gemini)',
+      'monthlyChart': 'Resumo mensal',
+      'biometricLock': 'Bloqueio Biométrico',
+      'biometricReason': 'Autentique-se para abrir o Financial Resume',
+      'unlock': 'Desbloquear',
       'errorSavingSettings': 'Erro ao salvar configurações',
       'apiKeyRemoved': 'Chave API removida!',
       'apiKeyCopied': 'Chave API copiada para a área de transferência!',
@@ -966,6 +974,10 @@ class AppLocalizations {
       'themeSystem': 'Sistema',
       'themeDark': 'Oscuro',
       'basicOcrExtraction': 'Extracción básica (sin API Gemini)',
+      'monthlyChart': 'Resumen mensual',
+      'biometricLock': 'Bloqueo Biométrico',
+      'biometricReason': 'Autentíquese para abrir Financial Resume',
+      'unlock': 'Desbloquear',
       'errorSavingSettings': 'Error al guardar la configuración',
       'apiKeyRemoved': '¡Clave API eliminada!',
       'apiKeyCopied': '¡Clave API copiada al portapapeles!',
@@ -1292,6 +1304,10 @@ class AppLocalizations {
       'themeSystem': 'Système',
       'themeDark': 'Sombre',
       'basicOcrExtraction': 'Extraction de base (sans API Gemini)',
+      'monthlyChart': 'Aperçu mensuel',
+      'biometricLock': 'Verrou Biométrique',
+      'biometricReason': 'Authentifiez-vous pour ouvrir Financial Resume',
+      'unlock': 'Déverrouiller',
       'errorSavingSettings': 'Erreur lors de la sauvegarde des paramètres',
       'apiKeyRemoved': 'Clé API supprimée!',
       'apiKeyCopied': 'Clé API copiée dans le presse-papiers!',
@@ -1618,6 +1634,10 @@ class AppLocalizations {
       'themeSystem': 'Системная',
       'themeDark': 'Тёмная',
       'basicOcrExtraction': 'Базовое извлечение (без API Gemini)',
+      'monthlyChart': 'Ежемесячный обзор',
+      'biometricLock': 'Биометрическая блокировка',
+      'biometricReason': 'Пройдите аутентификацию для входа',
+      'unlock': 'Разблокировать',
       'errorSavingSettings': 'Ошибка сохранения настроек',
       'apiKeyRemoved': 'Ключ API удален!',
       'apiKeyCopied': 'Ключ API скопирован в буфер обмена!',
@@ -1944,6 +1964,10 @@ class AppLocalizations {
       'themeSystem': '系统',
       'themeDark': '深色',
       'basicOcrExtraction': '基础提取（无Gemini API）',
+      'monthlyChart': '月度概览',
+      'biometricLock': '生物识别锁',
+      'biometricReason': '验证身份以打开Financial Resume',
+      'unlock': '解锁',
       'errorSavingSettings': '保存设置错误',
       'apiKeyRemoved': 'API密钥已删除!',
       'apiKeyCopied': 'API密钥已复制到剪贴板!',
@@ -2270,6 +2294,10 @@ class AppLocalizations {
       'themeSystem': 'Sistema',
       'themeDark': 'Scuro',
       'basicOcrExtraction': 'Estrazione di base (senza API Gemini)',
+      'monthlyChart': 'Panoramica mensile',
+      'biometricLock': 'Blocco Biometrico',
+      'biometricReason': 'Autenticati per aprire Financial Resume',
+      'unlock': 'Sblocca',
       'errorSavingSettings': 'Errore salvataggio impostazioni',
       'apiKeyRemoved': 'Chiave API rimossa!',
       'apiKeyCopied': 'Chiave API copiata negli appunti!',
@@ -2610,6 +2638,10 @@ class AppLocalizations {
   String get themeSystem => _getText('themeSystem')!;
   String get themeDark => _getText('themeDark')!;
   String get basicOcrExtraction => _getText('basicOcrExtraction')!;
+  String get monthlyChart => _getText('monthlyChart')!;
+  String get biometricLock => _getText('biometricLock')!;
+  String get biometricReason => _getText('biometricReason')!;
+  String get unlock => _getText('unlock')!;
   String get errorSavingSettings => _getText('errorSavingSettings')!;
   String get apiKeyRemoved => _getText('apiKeyRemoved')!;
   String get apiKeyCopied => _getText('apiKeyCopied')!;
