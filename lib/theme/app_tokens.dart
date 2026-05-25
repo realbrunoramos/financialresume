@@ -118,9 +118,26 @@ abstract class AppTokens {
   }
 
   // ─── PADDING PADRÕES ──────────────────────────────────────────────────────
+
   static const EdgeInsets paddingScreen  = EdgeInsets.all(sp16);
   static const EdgeInsets paddingCard    = EdgeInsets.all(sp20);
   static const EdgeInsets paddingSection = EdgeInsets.symmetric(
     horizontal: sp16, vertical: sp12,
   );
 }
+
+/// Shared fade + 4 % horizontal slide page route.
+/// Import `app_tokens.dart` (already done in every screen) and call
+/// `slideRoute(MyScreen())` wherever you would use `MaterialPageRoute`.
+PageRouteBuilder<T> slideRoute<T>(Widget page) => PageRouteBuilder<T>(
+  pageBuilder: (_, __, ___) => page,
+  transitionDuration: AppTokens.normal,
+  transitionsBuilder: (_, animation, __, child) => FadeTransition(
+    opacity: animation,
+    child: SlideTransition(
+      position: Tween(begin: const Offset(0.04, 0), end: Offset.zero)
+          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOut)),
+      child: child,
+    ),
+  ),
+);

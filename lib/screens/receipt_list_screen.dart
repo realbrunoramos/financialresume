@@ -62,10 +62,7 @@ class ReceiptListScreen extends StatelessWidget {
                 return GestureDetector(
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ImageViewerScreen(imagePath: path),
-                    ),
+                    slideRoute(ImageViewerScreen(imagePath: path)),
                   ),
                   child: ClipRRect(
                     borderRadius:

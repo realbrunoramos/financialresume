@@ -1075,10 +1075,10 @@ class _SummaryScreenState extends State<SummaryScreen> {
                               ),
                             ],
                           ),
-                          for (final item in data['transactions'])
+                          for (final entry in (data['transactions'] as List<_TransactionWithBalance>).asMap().entries)
                             pw.TableRow(
                               decoration: pw.BoxDecoration(
-                                color: data['transactions'].indexOf(item).isEven
+                                color: entry.key.isEven
                                     ? PdfColors.white
                                     : PdfColors.grey50,
                               ),
@@ -1086,7 +1086,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(8),
                                   child: pw.Text(
-                                    format.format(item.transaction.date),
+                                    format.format(entry.value.transaction.date),
                                     style: const pw.TextStyle(
                                       fontSize: 9,
                                       color: PdfColors.grey800,
@@ -1097,7 +1097,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(8),
                                   child: pw.Text(
-                                    item.transaction.description,
+                                    entry.value.transaction.description,
                                     style: const pw.TextStyle(
                                       fontSize: 9,
                                       color: PdfColors.grey800,
@@ -1108,11 +1108,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(8),
                                   child: pw.Text(
-                                    '${item.transaction.isCredit ? '+' : '-'}${formatValue(item.transaction.amount)}',
+                                    '${entry.value.transaction.isCredit ? '+' : '-'}${formatValue(entry.value.transaction.amount)}',
                                     style: pw.TextStyle(
                                       fontSize: 9,
                                       fontWeight: pw.FontWeight.bold,
-                                      color: item.transaction.isCredit
+                                      color: entry.value.transaction.isCredit
                                           ? PdfColors.green
                                           : PdfColors.red,
                                     ),
@@ -1122,11 +1122,11 @@ class _SummaryScreenState extends State<SummaryScreen> {
                                 pw.Padding(
                                   padding: const pw.EdgeInsets.all(8),
                                   child: pw.Text(
-                                    formatValue(item.runningBalance),
+                                    formatValue(entry.value.runningBalance),
                                     style: pw.TextStyle(
                                       fontSize: 9,
                                       fontWeight: pw.FontWeight.bold,
-                                      color: item.runningBalance >= 0
+                                      color: entry.value.runningBalance >= 0
                                           ? PdfColors.green
                                           : PdfColors.red,
                                     ),
@@ -1450,7 +1450,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       width: 20, height: 20,
                       child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(AppColors.white)))
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white)))
                   : Icon(Icons.download_rounded,
                       color: _selectedMonths.isEmpty
                           ? AppColors.grey500

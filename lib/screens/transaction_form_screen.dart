@@ -751,7 +751,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Future<void> _scanDocument() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ScanFileScreen(sectionId: widget.sectionId)),
+      slideRoute(ScanFileScreen(sectionId: widget.sectionId)),
     );
 
     if (result != null && result is Map<String, dynamic>) {
@@ -892,9 +892,7 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   Future<void> _viewImage(String path) async {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ImageViewerScreen(imagePath: path),
-      ),
+      slideRoute(ImageViewerScreen(imagePath: path)),
     );
   }
 

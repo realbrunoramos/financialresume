@@ -61,12 +61,10 @@ ${l.paidStatus}: ${t.paid ? l.yes : l.no}''');
   void _editTransaction() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => TransactionFormScreen(
-          transaction: widget.transaction,
-          sectionId: widget.sectionId,
-        ),
-      ),
+      slideRoute(TransactionFormScreen(
+        transaction: widget.transaction,
+        sectionId: widget.sectionId,
+      )),
     );
   }
 
@@ -702,8 +700,7 @@ class _AttachmentTile extends StatelessWidget {
       InkWell(
         onTap: () => Navigator.push(
           context,
-          MaterialPageRoute(
-              builder: (_) => ImageViewerScreen(imagePath: path)),
+          slideRoute(ImageViewerScreen(imagePath: path)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(
