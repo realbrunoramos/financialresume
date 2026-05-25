@@ -95,16 +95,15 @@ class _HomeScreenState extends State<HomeScreen>
     HapticFeedback.mediumImpact();
     final loc = AppLocalizations.of(context);
 
-    await showModalBottomSheet<void>(
+    final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SectionOptionsSheet(
-        section: section,
-        loc: loc,
-        onRename: () => _renameSection(section),
-        onDelete: () => _deleteSection(section),
-      ),
+      builder: (_) => _SectionOptionsSheet(section: section, loc: loc),
     );
+
+    if (!mounted) return;
+    if (action == 'rename') _renameSection(section);
+    else if (action == 'delete') _deleteSection(section);
   }
 
   Future<void> _renameSection(Section section) async {
@@ -811,14 +810,10 @@ class _CreateSectionSheet extends StatelessWidget {
 class _SectionOptionsSheet extends StatelessWidget {
   final Section section;
   final AppLocalizations loc;
-  final VoidCallback onRename;
-  final VoidCallback onDelete;
 
   const _SectionOptionsSheet({
     required this.section,
     required this.loc,
-    required this.onRename,
-    required this.onDelete,
   });
 
   @override
@@ -855,20 +850,14 @@ class _SectionOptionsSheet extends StatelessWidget {
           _OptionTile(
             icon: Icons.edit_rounded,
             label: loc.rename,
-            onTap: () {
-              Navigator.pop(context);
-              onRename();
-            },
+            onTap: () => Navigator.pop(context, 'rename'),
           ),
           const SizedBox(height: AppTokens.sp4),
           _OptionTile(
             icon: Icons.delete_outline_rounded,
             label: loc.delete,
             color: AppColors.danger,
-            onTap: () {
-              Navigator.pop(context);
-              onDelete();
-            },
+            onTap: () => Navigator.pop(context, 'delete'),
           ),
           const SizedBox(height: AppTokens.sp8),
           TextButton(
