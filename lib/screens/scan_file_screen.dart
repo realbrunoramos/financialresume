@@ -419,8 +419,8 @@ class TextBasedDocumentImageProcessor {
 
   Map<String, dynamic> get lightAnalysis => _lightAnalysis;
 
-  void dispose() {
-    _textRecognizer.close();
+  Future<void> dispose() async {
+    await _textRecognizer.close();
   }
 }
 
@@ -1035,7 +1035,7 @@ ${invoicesString.toString()}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erro na análise IA: $e'),
+            content: Text(errorAiLabel),
             backgroundColor: AppColors.red,
           ),
         );

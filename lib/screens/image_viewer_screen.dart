@@ -10,10 +10,14 @@ class ImageViewerScreen extends StatelessWidget {
 
   const ImageViewerScreen({super.key, required this.imagePath});
 
-  Future<void> _shareImage() async {
+  Future<void> _shareImage(BuildContext context) async {
+    final invoiceLabel = AppLocalizations.of(context).invoice;
     final file = File(imagePath);
     if (await file.exists()) {
-      await Share.shareXFiles([XFile(imagePath)], text: 'Transaction Invoice');
+      await Share.shareXFiles(
+        [XFile(imagePath)],
+        text: invoiceLabel,
+      );
     }
   }
 
@@ -29,7 +33,7 @@ class ImageViewerScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.share_rounded),
-            onPressed: _shareImage,
+            onPressed: () => _shareImage(context),
             tooltip: 'Share',
           ),
         ],

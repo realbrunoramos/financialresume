@@ -428,8 +428,10 @@ class _InfoRow extends StatelessWidget {
         HapticFeedback.lightImpact();
         Clipboard.setData(ClipboardData(text: value));
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Copied'), duration: Duration(seconds: 1)),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).copied),
+            duration: const Duration(seconds: 1),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(AppTokens.radius16),

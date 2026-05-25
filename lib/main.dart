@@ -120,17 +120,10 @@ Future<void> _scheduleDueDateNotifications(BuildContext context) async {
           final notificationDate = DateTime(now.year, now.month, now.day, 10, 50);
 
           final actualNotificationDate = notificationDate.isBefore(now)
-              ? notificationDate.add(Duration(days: 1))
+              ? notificationDate.add(const Duration(days: 1))
               : notificationDate;
 
-          String numericId = invoice.id.replaceAll(RegExp(r'[^0-9]'), '');
-          if (numericId.isEmpty) numericId = '99999';
-
-          if (numericId.length > 9) {
-            numericId = numericId.substring(numericId.length - 9);
-          }
-
-          final notificationId = int.parse(numericId);
+          final notificationId = invoice.id.hashCode.abs() & 0x7FFFFFFF;
 
           await notificationService.scheduleNotification(
             id: notificationId,

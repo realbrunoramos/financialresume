@@ -881,10 +881,11 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   }
 
   Future<void> _downloadImage(String path) async {
+    final msg = AppLocalizations.of(context).imageDownloadedSuccessfully;
     await _fileService.downloadImage(path);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Imagem baixada com sucesso!')),
+      SnackBar(content: Text(msg)),
     );
   }
 

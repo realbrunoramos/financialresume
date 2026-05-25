@@ -227,6 +227,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': 'What do you want to do with this invoice?',
       'reserveWarningTitle': 'Amount Exceeds Balance',
       'reserveWarningBody': 'The amount to reserve exceeds your available balance. Are you sure you want to continue?',
+      'copied': 'Copied',
+      'imageDownloadedSuccessfully': 'Image downloaded successfully!',
       'reserve': 'Reserve',
       'confirmDeletion': 'Confirm Deletion',
       'confirmDeleteInvoice': 'Are you sure you want to delete this invoice?',
@@ -545,6 +547,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': 'O que deseja fazer com esta fatura?',
       'reserveWarningTitle': 'Valor Excede o Saldo',
       'reserveWarningBody': 'O valor a reservar excede o seu saldo disponível. Tem certeza que deseja continuar?',
+      'copied': 'Copiado',
+      'imageDownloadedSuccessfully': 'Imagem baixada com sucesso!',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Exclusão',
       'confirmDeleteInvoice': 'Tem certeza que deseja excluir esta fatura?',
@@ -863,6 +867,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': '¿Qué desea hacer con esta factura?',
       'reserveWarningTitle': 'Monto Supera el Saldo',
       'reserveWarningBody': 'El monto a reservar supera su saldo disponible. ¿Está seguro de que desea continuar?',
+      'copied': 'Copiado',
+      'imageDownloadedSuccessfully': '¡Imagen descargada con éxito!',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Eliminación',
       'confirmDeleteInvoice': '¿Está seguro de que desea eliminar esta factura?',
@@ -1181,6 +1187,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': 'Que voulez-vous faire avec cette facture?',
       'reserveWarningTitle': 'Montant Dépasse le Solde',
       'reserveWarningBody': 'Le montant à réserver dépasse votre solde disponible. Êtes-vous sûr de vouloir continuer?',
+      'copied': 'Copié',
+      'imageDownloadedSuccessfully': 'Image téléchargée avec succès!',
       'reserve': 'Réserver',
       'confirmDeletion': 'Confirmer la suppression',
       'confirmDeleteInvoice': 'Êtes-vous sûr de vouloir supprimer cette facture?',
@@ -1499,6 +1507,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': 'Что вы хотите сделать с этим счетом?',
       'reserveWarningTitle': 'Сумма Превышает Баланс',
       'reserveWarningBody': 'Сумма для резерва превышает ваш доступный баланс. Вы уверены, что хотите продолжить?',
+      'copied': 'Скопировано',
+      'imageDownloadedSuccessfully': 'Изображение скачано успешно!',
       'reserve': 'Резервировать',
       'confirmDeletion': 'Подтвердить удаление',
       'confirmDeleteInvoice': 'Вы уверены, что хотите удалить этот счет?',
@@ -1817,6 +1827,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': '您想对此发票做什么?',
       'reserveWarningTitle': '金额超出余额',
       'reserveWarningBody': '要保留的金额超过了您的可用余额。您确定要继续吗？',
+      'copied': '已复制',
+      'imageDownloadedSuccessfully': '图片下载成功！',
       'reserve': '保留',
       'confirmDeletion': '确认删除',
       'confirmDeleteInvoice': '您确定要删除此发票吗?',
@@ -2135,6 +2147,8 @@ class AppLocalizations {
       'whatToDoWithThisInvoice': 'Cosa vuoi fare con questa fattura?',
       'reserveWarningTitle': 'Importo Supera il Saldo',
       'reserveWarningBody': "L'importo da prenotare supera il saldo disponibile. Sei sicuro di voler procedere?",
+      'copied': 'Copiato',
+      'imageDownloadedSuccessfully': 'Immagine scaricata con successo!',
       'reserve': 'Prenota',
       'confirmDeletion': 'Conferma eliminazione',
       'confirmDeleteInvoice': 'Sei sicuro di voler eliminare questa fattura?',
@@ -2475,6 +2489,8 @@ class AppLocalizations {
   String get whatToDoWithThisInvoice => _getText('whatToDoWithThisInvoice')!;
   String get reserveWarningTitle => _getText('reserveWarningTitle')!;
   String get reserveWarningBody => _getText('reserveWarningBody')!;
+  String get copied => _getText('copied')!;
+  String get imageDownloadedSuccessfully => _getText('imageDownloadedSuccessfully')!;
   String get addMorePages => _getText('addMorePages')!;
   String get addMorePagesQuestion => _getText('addMorePagesQuestion')!;
   String get amountToReserve => _getText('amountToReserve')!;
