@@ -27,7 +27,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 13,
+      version: 14,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -44,6 +44,9 @@ class DatabaseService {
         }
         if (oldVersion < 13) {
           await _upgradeToVersion13(db);
+        }
+        if (oldVersion < 14) {
+          await _upgradeToVersion14(db);
         }
       },
     );
@@ -115,6 +118,26 @@ class DatabaseService {
         value TEXT
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE ai_cache (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cache_key TEXT UNIQUE NOT NULL,
+        response_json TEXT NOT NULL,
+        model TEXT DEFAULT 'gemini-2.5-flash',
+        created_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE ai_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date_str TEXT UNIQUE NOT NULL,
+        calls_count INTEGER DEFAULT 0,
+        tokens_used INTEGER DEFAULT 0
+      )
+    ''');
   }
 
   Future<void> _upgradeToVersion12(Database db) async {
@@ -132,6 +155,36 @@ class DatabaseService {
 
   Future<void> _upgradeToVersion13(Database db) async {
     // Version 13: schema finalised in _createTables — no migration needed.
+  }
+
+  Future<void> _upgradeToVersion14(Database db) async {
+    // Version 14: AI cache + usage tracking tables.
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ai_cache (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cache_key TEXT UNIQUE NOT NULL,
+          response_json TEXT NOT NULL,
+          model TEXT DEFAULT 'gemini-2.5-flash',
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        )
+      ''');
+    } catch (e) {
+      debugPrint('ai_cache table already exists: $e');
+    }
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS ai_usage (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date_str TEXT UNIQUE NOT NULL,
+          calls_count INTEGER DEFAULT 0,
+          tokens_used INTEGER DEFAULT 0
+        )
+      ''');
+    } catch (e) {
+      debugPrint('ai_usage table already exists: $e');
+    }
   }
 
   Future<void> saveSetting(String key, String value) async {

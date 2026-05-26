@@ -11,7 +11,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -19,17 +18,16 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as imge;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../l10n/app_localizations.dart';
 import '../screens/manual_crop_screen.dart';
+import '../services/ai_document_service.dart';
 import '../services/database_service.dart';
 import '../services/image_pipeline_service.dart';
 import '../services/ocr_parser_service.dart';
-import '../services/secure_storage_service.dart';
 import '../theme/app_tokens.dart';
 import '../theme/colors.dart';
 
@@ -222,6 +220,7 @@ class _ScanFileScreenState extends State<ScanFileScreen>
   int     _mlKitBlockCount  = 0;
   int     _mlKitConfidence  = 0;
   Map<String, dynamic>? _aiAnalysis;
+  AiAnalysisResult?     _latestAiResult;
   bool    _isAnalyzingAI    = false;
 
   // ── Multi-page ─────────────────────────────────────────────────────────────
@@ -593,6 +592,59 @@ class _ScanFileScreenState extends State<ScanFileScreen>
                   fontSize: 14, height: 1.5,
                   color: isDark ? AppColors.darkSubtext : AppColors.grey500),
               ),
+              // ── AI insights strip ──────────────────────────────────────
+              if (_latestAiResult != null && _latestAiResult!.insights.isNotEmpty) ...[
+                const SizedBox(height: AppTokens.sp12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _latestAiResult!.insights.take(3).map((ins) =>
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.info.withAlpha(isDark ? 40 : 20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: AppColors.info.withAlpha(60))),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.lightbulb_outline_rounded,
+                            color: AppColors.info, size: 12),
+                        const SizedBox(width: 4),
+                        Flexible(child: Text(ins,
+                            style: const TextStyle(
+                                color: AppColors.info,
+                                fontSize: 11))),
+                      ]),
+                    ),
+                  ).toList(),
+                ),
+              ],
+              // ── Anomaly warning ────────────────────────────────────────
+              if (_latestAiResult?.anomaly?.detected == true) ...[
+                const SizedBox(height: AppTokens.sp8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withAlpha(isDark ? 40 : 20),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppColors.warning.withAlpha(80))),
+                  child: Row(children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: AppColors.warning, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                      _latestAiResult!.anomaly!.description ?? l.anomalyDetected,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? AppColors.darkText
+                              : AppColors.dark),
+                    )),
+                  ]),
+                ),
+              ],
               const SizedBox(height: AppTokens.sp20),
               Row(children: [
                 Expanded(
@@ -633,13 +685,14 @@ class _ScanFileScreenState extends State<ScanFileScreen>
 
   Future<void> _retryCapture() async {
     setState(() {
-      _captured       = null;
-      _processedPath  = null;
-      _basePath       = null;
-      _selectedFilter = 0;
-      _filterThumbs   = [];
-      _showScanLine   = false;
-      _ocrResult      = null;
+      _captured        = null;
+      _processedPath   = null;
+      _basePath        = null;
+      _selectedFilter  = 0;
+      _filterThumbs    = [];
+      _showScanLine    = false;
+      _ocrResult       = null;
+      _latestAiResult  = null;
     });
     // Restart stream
     try { await _ctrl?.startImageStream(_onFrame); } catch (_) {}
@@ -648,108 +701,64 @@ class _ScanFileScreenState extends State<ScanFileScreen>
   // ── AI analysis ────────────────────────────────────────────────────────────
 
   Future<void> _analyzeWithAI() async {
-    final promptLang   = AppLocalizations.of(context).promptLanguage;
-    final errorLabel   = AppLocalizations.of(context).errorAiAnalysis;
-
-    final invoices = await _db.getNoPaidInvoices(widget.sectionId);
-    final inv = StringBuffer();
-    for (final i in invoices) {
-      inv.write(
-          'id: ${i.id} -> entidade: ${i.entity}, valor: ${i.amount}, refMesAno: ${i.monthRef}\n');
-    }
-
-    if (_processedPath == null || _isAnalyzingAI) return;
+    if (_processedPath == null || _isAnalyzingAI) { return; }
     setState(() => _isAnalyzingAI = true);
 
     try {
-      final apiKey = await SecureStorageService.readApiKey();
-      if (apiKey == null || apiKey.isEmpty) {
-        final parsed = OcrParserService.parse(
-            _mlKitText, recognizedText: _ocrResult);
-        if (mounted) {
-          setState(() => _aiAnalysis = parsed.fields);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(AppLocalizations.of(context).basicOcrExtraction),
-              backgroundColor: AppColors.info,
-              duration: const Duration(seconds: 3)));
-        }
-        return;
-      }
+      final promptLang = AppLocalizations.of(context).promptLanguage;
 
-      final imageBytes  = await File(_processedPath!).readAsBytes();
-      final imageBase64 = base64Encode(imageBytes);
-      final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
+      // Build existing-invoice context for duplicate detection
+      final invoices = await _db.getNoPaidInvoices(widget.sectionId);
+      final invLines = invoices.map((i) =>
+          'id:${i.id} entity:${i.entity} amount:${i.amount} ref:${i.monthRef}').toList();
 
-      final prompt = _buildGeminiPrompt(promptLang, inv.toString());
+      final result = await AiDocumentService.analyze(
+        imagePath:        _processedPath!,
+        ocrText:          _mlKitText,
+        recognizedText:   _ocrResult,
+        sectionId:        widget.sectionId,
+        promptLanguage:   promptLang,
+        existingInvoices: invLines,
+      );
 
-      http.Response? response;
-      for (int attempt = 0; attempt < 3; attempt++) {
-        try {
-          response = await http.post(url,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'contents': [
-                  {
-                    'parts': [
-                      {'text': prompt},
-                      {
-                        'inlineData': {
-                          'mimeType': 'image/jpeg',
-                          'data': imageBase64,
-                        }
-                      }
-                    ]
-                  }
-                ]
-              })).timeout(const Duration(seconds: 45));
-          if (response.statusCode == 429) {
-            await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
-            continue;
-          }
-          break;
-        } on TimeoutException {
-          if (attempt == 2) rethrow;
-          await Future.delayed(const Duration(seconds: 3));
-        }
-      }
+      if (!mounted) { return; }
 
-      if (response != null && response.statusCode == 200) {
-        final data  = jsonDecode(response.body);
-        final text  = data['candidates'][0]['content']['parts'][0]['text'] as String;
-        final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(text);
-        if (match != null) {
-          final ai = jsonDecode(match.group(0)!);
-          if (mounted) setState(() => _aiAnalysis = ai);
-        }
-      } else {
-        throw Exception('API ${response?.statusCode ?? 'no response'}');
+      setState(() {
+        _aiAnalysis     = result.fields;
+        _latestAiResult = result;
+        _mlKitConfidence = result.confidence;
+      });
+
+      // Surface snackbar for fallback paths
+      if (result.isFallback) {
+        final l = AppLocalizations.of(context);
+        final msg = result.source == 'ocr_limit'
+            ? l.usageLimitReached
+            : l.basicOcrExtraction;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(msg),
+            backgroundColor: AppColors.info,
+            duration: const Duration(seconds: 3)));
       }
     } catch (e) {
-      debugPrint('$errorLabel $e');
-      if (_mlKitText.isNotEmpty) {
-        final parsed = OcrParserService.parse(
-            _mlKitText, recognizedText: _ocrResult);
-        if (mounted) setState(() => _aiAnalysis = parsed.fields);
+      debugPrint('[ScanFileScreen] AI analysis error: $e');
+      // Last-resort OCR fallback
+      if (_mlKitText.isNotEmpty && mounted) {
+        final parsed = OcrParserService.parse(_mlKitText, recognizedText: _ocrResult);
+        setState(() {
+          _aiAnalysis     = parsed.fields;
+          _mlKitConfidence = parsed.confidence;
+        });
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(errorLabel), backgroundColor: AppColors.red));
+            content: Text(AppLocalizations.of(context).errorAiAnalysis),
+            backgroundColor: AppColors.red));
       }
     } finally {
-      if (mounted) setState(() => _isAnalyzingAI = false);
+      if (mounted) { setState(() => _isAnalyzingAI = false); }
     }
   }
-
-  String _buildGeminiPrompt(String lang, String invoices) => """
-Recebeste uma imagem de um documento financeiro (ex.: fatura, recibo, comprovativo de pagamento).
-Deves extrair informações e responder **APENAS** com um objeto JSON de linha única no formato seguinte, sem explicações adicionais e sem texto fora do JSON:
-
-{"tipo_documento":<número>,"entidade":"string|UNKNOWN","data_emissao":"dd mm yyyy|UNKNOWN","valor_total":"string numérica|UNKNOWN","data_limite":"dd mm yyyy|UNKNOWN","é_crédito":"0|1|UNKNOWN","mes_ano_ref":"mm/yyyy|UNKNOWN","descrição":"string|UNKNOWN","ids_ref_fatura":"string|UNKNOWN","numero_serie":"string|UNKNOWN","metodo_pagamento":"string|UNKNOWN"}
-
-Tipos: 1=Compra, 2=Fatura/Cobrança, 3=Comprovativo Pagamento, 4=Outro
-Faturas existentes: $invoices
-(Output em: $lang)""";
 
   // ══════════════════════════════════════════════════════════════════════════
   // BUILD
@@ -1086,35 +1095,93 @@ Faturas existentes: $invoices
     if (_processedPath == null || _mlKitBlockCount == 0) {
       return const SizedBox.shrink();
     }
+
+    final ai = _latestAiResult;
+    final conf = _mlKitConfidence;
+
+    // Colour scale: 0-3 red, 4-6 amber, 7-10 green
     final Color color;
     final String dots;
-    if (_mlKitConfidence >= 4) {
+    if (conf >= 7) {
       color = AppColors.success; dots = '●●●';
-    } else if (_mlKitConfidence >= 2) {
+    } else if (conf >= 4) {
       color = AppColors.warning; dots = '●●○';
     } else {
       color = AppColors.danger;  dots = '●○○';
     }
+
+    // Source label: AI / Cache / OCR
+    final String srcLabel;
+    if (ai == null || ai.isFallback) {
+      srcLabel = 'OCR';
+    } else if (ai.isFromCache) {
+      srcLabel = 'AI ⚡';
+    } else {
+      srcLabel = 'AI';
+    }
+
+    // Optional anomaly chip
+    final hasAnomaly = ai?.anomaly?.detected == true;
+
     return Positioned(
-      top: _pages.isNotEmpty ? 80 : 12,
+      top:  _pages.isNotEmpty ? 80 : 12,
       left: 12,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.black.withAlpha(200),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withAlpha(160), width: 1)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(dots,
-              style: TextStyle(
-                  color: color, fontSize: 10, letterSpacing: 2)),
-          const SizedBox(width: 6),
-          Text('OCR $_mlKitBlockCount',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600)),
-        ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Main badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(200),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withAlpha(160), width: 1)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(dots,
+                  style: TextStyle(color: color, fontSize: 10, letterSpacing: 2)),
+              const SizedBox(width: 6),
+              Text('$srcLabel  $conf/10',
+                  style: const TextStyle(
+                      color: Colors.white, fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+            ]),
+          ),
+          // Anomaly chip
+          if (hasAnomaly) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withAlpha(220),
+                borderRadius: BorderRadius.circular(12)),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.warning_amber_rounded,
+                    color: Colors.white, size: 11),
+                SizedBox(width: 4),
+                Text('Anomaly',
+                    style: TextStyle(
+                        color: Colors.white, fontSize: 10,
+                        fontWeight: FontWeight.w700)),
+              ]),
+            ),
+          ],
+          // Category chip
+          if (ai?.category != null) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.info.withAlpha(200),
+                borderRadius: BorderRadius.circular(12)),
+              child: Text(
+                ai!.category!,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 10,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

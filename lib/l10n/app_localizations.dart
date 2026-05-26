@@ -356,6 +356,20 @@ class AppLocalizations {
       'filterBW': 'B&W',
       'filterNatural': 'Natural',
       'filterSharp': 'Sharp',
+      // Premium AI tier
+      'premiumPlan':         'Premium Plan',
+      'freePlan':            'Free Plan',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analysing with AI…',
+      'aiSource':            'AI',
+      'fromCache':           'Cached',
+      'usageLimitReached':   'Daily AI limit reached',
+      'anomalyDetected':     'Anomaly detected',
+      'aiCallsToday':        'AI calls today',
+      'premiumFeature':      'Premium Feature',
+      'documentCategory':    'Category',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure the API key to enable AI analysis',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -699,6 +713,20 @@ class AppLocalizations {
       'filterBW': 'P&B',
       'filterNatural': 'Natural',
       'filterSharp': 'Nítido',
+      // Premium AI tier
+      'premiumPlan':         'Plano Premium',
+      'freePlan':            'Plano Gratuito',
+      'planStatus':          'Plano',
+      'aiAnalysing':         'A analisar com IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite diário de IA atingido',
+      'anomalyDetected':     'Anomalia detectada',
+      'aiCallsToday':        'chamadas IA hoje',
+      'premiumFeature':      'Funcionalidade Premium',
+      'documentCategory':    'Categoria',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure a API key para activar a análise IA',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1042,6 +1070,20 @@ class AppLocalizations {
       'filterBW': 'B&N',
       'filterNatural': 'Natural',
       'filterSharp': 'Nítido',
+      // Premium AI tier
+      'premiumPlan':         'Plan Premium',
+      'freePlan':            'Plan Gratuito',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analizando con IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Caché',
+      'usageLimitReached':   'Límite diario de IA alcanzado',
+      'anomalyDetected':     'Anomalía detectada',
+      'aiCallsToday':        'llamadas IA hoy',
+      'premiumFeature':      'Función Premium',
+      'documentCategory':    'Categoría',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure la clave API para activar el análisis IA',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1385,6 +1427,20 @@ class AppLocalizations {
       'filterBW': 'N&B',
       'filterNatural': 'Naturel',
       'filterSharp': 'Net',
+      // Premium AI tier
+      'premiumPlan':         'Plan Premium',
+      'freePlan':            'Plan Gratuit',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analyse IA en cours…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite quotidienne IA atteinte',
+      'anomalyDetected':     'Anomalie détectée',
+      'aiCallsToday':        'appels IA aujourd\'hui',
+      'premiumFeature':      'Fonctionnalité Premium',
+      'documentCategory':    'Catégorie',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configurez la clé API pour activer l\'analyse IA',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1728,6 +1784,20 @@ class AppLocalizations {
       'filterBW': 'Ч/Б',
       'filterNatural': 'Натуральный',
       'filterSharp': 'Чёткий',
+      // Premium AI tier
+      'premiumPlan':         'Премиум план',
+      'freePlan':            'Бесплатный план',
+      'planStatus':          'План',
+      'aiAnalysing':         'Анализ с ИИ…',
+      'aiSource':            'ИИ',
+      'fromCache':           'Кэш',
+      'usageLimitReached':   'Дневной лимит ИИ достигнут',
+      'anomalyDetected':     'Аномалия обнаружена',
+      'aiCallsToday':        'вызовов ИИ сегодня',
+      'premiumFeature':      'Премиум функция',
+      'documentCategory':    'Категория',
+      'aiInsights':          'Выводы',
+      'configureApiKeyForAi': 'Настройте API ключ для анализа ИИ',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -2071,6 +2141,20 @@ class AppLocalizations {
       'filterBW': '黑白',
       'filterNatural': '自然',
       'filterSharp': '锐利',
+      // Premium AI tier
+      'premiumPlan':         '高级计划',
+      'freePlan':            '免费计划',
+      'planStatus':          '计划',
+      'aiAnalysing':         'AI 分析中…',
+      'aiSource':            'AI',
+      'fromCache':           '缓存',
+      'usageLimitReached':   '已达到每日 AI 限制',
+      'anomalyDetected':     '检测到异常',
+      'aiCallsToday':        '今日 AI 调用次数',
+      'premiumFeature':      '高级功能',
+      'documentCategory':    '类别',
+      'aiInsights':          '洞察',
+      'configureApiKeyForAi': '配置 API 密钥以启用 AI 分析',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2414,6 +2498,20 @@ class AppLocalizations {
       'filterBW': 'B&N',
       'filterNatural': 'Naturale',
       'filterSharp': 'Nitido',
+      // Premium AI tier
+      'premiumPlan':         'Piano Premium',
+      'freePlan':            'Piano Gratuito',
+      'planStatus':          'Piano',
+      'aiAnalysing':         'Analisi con IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite giornaliero IA raggiunto',
+      'anomalyDetected':     'Anomalia rilevata',
+      'aiCallsToday':        'chiamate IA oggi',
+      'premiumFeature':      'Funzionalità Premium',
+      'documentCategory':    'Categoria',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configura la chiave API per attivare l\'analisi IA',
     },
   };
 
@@ -2771,6 +2869,21 @@ class AppLocalizations {
   String get filterBW => _getText('filterBW')!;
   String get filterNatural => _getText('filterNatural')!;
   String get filterSharp => _getText('filterSharp')!;
+
+  // Premium AI tier strings
+  String get premiumPlan          => _getText('premiumPlan')!;
+  String get freePlan             => _getText('freePlan')!;
+  String get planStatus           => _getText('planStatus')!;
+  String get aiAnalysing          => _getText('aiAnalysing')!;
+  String get aiSource             => _getText('aiSource')!;
+  String get fromCache            => _getText('fromCache')!;
+  String get usageLimitReached    => _getText('usageLimitReached')!;
+  String get anomalyDetected      => _getText('anomalyDetected')!;
+  String get aiCallsToday         => _getText('aiCallsToday')!;
+  String get premiumFeature       => _getText('premiumFeature')!;
+  String get documentCategory     => _getText('documentCategory')!;
+  String get aiInsights           => _getText('aiInsights')!;
+  String get configureApiKeyForAi => _getText('configureApiKeyForAi')!;
 
 }
 

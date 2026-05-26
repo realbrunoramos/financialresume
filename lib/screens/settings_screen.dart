@@ -4,9 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/language_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/ai_cache_service.dart';
 import '../services/biometric_service.dart';
 import '../services/database_service.dart';
 import '../services/secure_storage_service.dart';
+import '../services/subscription_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
 import '../l10n/app_localizations.dart';
@@ -21,11 +23,14 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseService _db = DatabaseService();
   final TextEditingController _apiKeyCtrl = TextEditingController();
-  String _lang = 'pt';
-  bool _loading           = true;
-  bool _obscure           = true;
-  bool _biometricEnabled  = false;
-  bool _biometricAvailable = false;
+  String   _lang            = 'pt';
+  bool     _loading         = true;
+  bool     _obscure         = true;
+  bool     _biometricEnabled   = false;
+  bool     _biometricAvailable = false;
+  AppPlan  _plan            = AppPlan.free;
+  UsageStats? _usageStats;
+  int      _cacheSize       = 0;
 
   static const Map<String, String> _languages = {
     'pt': 'Português',
@@ -51,23 +56,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     try {
-      final apiKey   = await SecureStorageService.readApiKey();
-      final langKey  = await _db.getSetting('language');
-      final bioAvail = await BiometricService.isAvailable();
-      final bioEnab  = await BiometricService.isEnabled();
+      final results = await Future.wait([
+        SecureStorageService.readApiKey(),
+        _db.getSetting('language'),
+        BiometricService.isAvailable(),
+        BiometricService.isEnabled(),
+        SubscriptionService.getCurrentPlan(),
+        AiCacheService.getCacheSize(),
+      ]);
 
-      if (apiKey != null) _apiKeyCtrl.text = apiKey;
+      final apiKey   = results[0] as String?;
+      final langKey  = results[1] as String?;
+      final bioAvail = results[2] as bool;
+      final bioEnab  = results[3] as bool;
+      final plan     = results[4] as AppPlan;
+      final cache    = results[5] as int;
+
+      if (apiKey != null) { _apiKeyCtrl.text = apiKey; }
+
+      UsageStats? stats;
+      if (plan == AppPlan.premium) {
+        stats = await SubscriptionService.getUsageStats();
+      }
 
       setState(() {
         _lang = (langKey != null && _languages.containsKey(langKey))
-            ? langKey
-            : 'pt';
+            ? langKey : 'pt';
         _biometricAvailable = bioAvail;
         _biometricEnabled   = bioEnab;
-        _loading = false;
+        _plan       = plan;
+        _usageStats = stats;
+        _cacheSize  = cache;
+        _loading    = false;
       });
 
-      if (langKey == null) await _db.saveSetting('language', 'pt');
+      if (langKey == null) { await _db.saveSetting('language', 'pt'); }
     } catch (_) {
       setState(() => _loading = false);
     }
@@ -335,6 +358,140 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppTokens.sp12),
+
+                // ── Plan Status card ───────────────────────────────────────
+                _SettingsCard(
+                  isDark: isDark,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppTokens.sp16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header row
+                        Row(children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: (_plan == AppPlan.premium
+                                      ? AppColors.success
+                                      : AppColors.grey400)
+                                  .withAlpha(isDark ? 40 : 20),
+                              borderRadius:
+                                  BorderRadius.circular(AppTokens.radius8),
+                            ),
+                            child: Icon(
+                              _plan == AppPlan.premium
+                                  ? Icons.star_rounded
+                                  : Icons.star_border_rounded,
+                              color: _plan == AppPlan.premium
+                                  ? AppColors.success
+                                  : AppColors.grey400,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppTokens.sp12),
+                          Expanded(
+                            child: Text(l.planStatus,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark
+                                      ? AppColors.darkText
+                                      : AppColors.dark,
+                                )),
+                          ),
+                          // Plan badge pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _plan == AppPlan.premium
+                                  ? AppColors.success.withAlpha(isDark ? 50 : 30)
+                                  : AppColors.grey200,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _plan == AppPlan.premium
+                                  ? l.premiumPlan
+                                  : l.freePlan,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _plan == AppPlan.premium
+                                    ? AppColors.success
+                                    : AppColors.grey500,
+                              ),
+                            ),
+                          ),
+                        ]),
+
+                        // Premium usage stats
+                        if (_plan == AppPlan.premium &&
+                            _usageStats != null) ...[
+                          const SizedBox(height: AppTokens.sp12),
+                          const Divider(),
+                          const SizedBox(height: AppTokens.sp8),
+                          // Progress bar
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: _usageStats!.dailyProgress,
+                              minHeight: 6,
+                              backgroundColor: isDark
+                                  ? AppColors.darkBorder
+                                  : AppColors.grey100,
+                              valueColor: AlwaysStoppedAnimation(
+                                  _usageStats!.isAtDailyLimit
+                                      ? AppColors.danger
+                                      : AppColors.success),
+                            ),
+                          ),
+                          const SizedBox(height: AppTokens.sp6),
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                '${_usageStats!.callsToday} / '
+                                '${_usageStats!.limitDaily} '
+                                '${l.aiCallsToday}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? AppColors.darkSubtext
+                                      : AppColors.grey500,
+                                ),
+                              ),
+                              if (_cacheSize > 0)
+                                Text(
+                                  '$_cacheSize ${l.fromCache}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark
+                                        ? AppColors.darkSubtext
+                                        : AppColors.grey500,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+
+                        // Free plan hint
+                        if (_plan == AppPlan.free) ...[
+                          const SizedBox(height: AppTokens.sp8),
+                          Text(l.configureApiKeyForAi,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.darkSubtext
+                                    : AppColors.grey500,
+                              )),
+                        ],
                       ],
                     ),
                   ),
