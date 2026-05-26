@@ -1,15 +1,18 @@
 import 'package:camera/camera.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'theme/theme.dart';
 import 'l10n/app_localizations.dart';
 import 'services/biometric_service.dart';
 import 'services/database_service.dart';
+import 'providers/auth_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/theme_provider.dart';
@@ -23,8 +26,24 @@ import 'package:timezone/timezone.dart' as tz;
 late List<CameraDescription> cameras;
 final DatabaseService _dbService = DatabaseService();
 
+/// Whether Firebase was successfully initialised.
+/// False when [firebase_options.dart] has not been configured yet
+/// (the app runs in offline-only mode in that case).
+bool _cloudEnabled = false;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // ── Firebase (optional — gracefully disabled if not configured) ────────────
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    _cloudEnabled = true;
+    debugPrint('[main] Firebase initialised — cloud sync enabled');
+  } catch (e) {
+    debugPrint('[main] Firebase not configured — running offline-only: $e');
+  }
 
   // Initialise timezone database and pin it to the device's local zone.
   // Without setLocalLocation, tz.local defaults to UTC and all scheduled
@@ -45,12 +64,13 @@ Future<void> main() async {
       AndroidFlutterLocalNotificationsPlugin>()
       ?.requestNotificationsPermission();
 
-  runApp(MyApp(cameras: cameras,));
+  runApp(MyApp(cameras: cameras, cloudEnabled: _cloudEnabled));
 }
 
 class MyApp extends StatefulWidget {
   final List<CameraDescription> cameras;
-  const MyApp({super.key, required this.cameras});
+  final bool cloudEnabled;
+  const MyApp({super.key, required this.cameras, required this.cloudEnabled});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -78,6 +98,9 @@ class _MyAppState extends State<MyApp> {
         ),
         ChangeNotifierProvider(
           create: (_) => AppDataProvider()..init(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider(cloudEnabled: widget.cloudEnabled),
         ),
       ],
       child: Consumer2<LanguageProvider, ThemeProvider>(

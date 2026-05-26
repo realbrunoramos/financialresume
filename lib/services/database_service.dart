@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:uuid/uuid.dart';
 import '../models/section.dart';
 import '../models/transaction.dart' as trns;
 import '../models/reserved_amount.dart';
@@ -13,7 +16,8 @@ class DatabaseService {
   static const String paidMonthsTable = 'paid_months';
   static const String emailsSentTable = 'emails_sent';
   static const String reservedAmountsTable = 'reserved_amounts';
-  static const String settingsTable = 'settings';
+  static const String settingsTable    = 'settings';
+  static const String syncQueueTable   = 'sync_queue';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -27,7 +31,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 15,
+      version: 16,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -50,6 +54,9 @@ class DatabaseService {
         }
         if (oldVersion < 15) {
           await _upgradeToVersion15(db);
+        }
+        if (oldVersion < 16) {
+          await _upgradeToVersion16(db);
         }
       },
     );
@@ -162,6 +169,19 @@ class DatabaseService {
         created_at INTEGER NOT NULL
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $syncQueueTable (
+        id TEXT PRIMARY KEY,
+        entityType TEXT NOT NULL,
+        entityId TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        attempts INTEGER DEFAULT 0,
+        lastError TEXT
+      )
+    ''');
   }
 
   Future<void> _upgradeToVersion12(Database db) async {
@@ -240,6 +260,120 @@ class DatabaseService {
     } catch (e) {
       debugPrint('app_events table already exists: $e');
     }
+  }
+
+  Future<void> _upgradeToVersion16(Database db) async {
+    // Version 16: offline-first cloud sync queue.
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $syncQueueTable (
+          id TEXT PRIMARY KEY,
+          entityType TEXT NOT NULL,
+          entityId TEXT NOT NULL,
+          operation TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          attempts INTEGER DEFAULT 0,
+          lastError TEXT
+        )
+      ''');
+    } catch (e) {
+      debugPrint('[DB] sync_queue already exists: $e');
+    }
+  }
+
+  // ── Sync queue helpers ─────────────────────────────────────────────────────
+
+  /// Inserts a pending operation into [sync_queue].
+  /// Called automatically by write methods when data is mutated locally.
+  Future<void> _enqueueSyncItem(
+    Database db, {
+    required String entityType,
+    required String entityId,
+    required String operation,
+    required Map<String, dynamic> payload,
+  }) async {
+    try {
+      await db.insert(
+        syncQueueTable,
+        {
+          'id':         const Uuid().v4(),
+          'entityType': entityType,
+          'entityId':   entityId,
+          'operation':  operation,
+          'payload':    jsonEncode(payload),
+          'createdAt':  DateTime.now().toIso8601String(),
+          'attempts':   0,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    } catch (e) {
+      debugPrint('[DB] _enqueueSyncItem error: $e');
+    }
+  }
+
+  /// Returns all items in [sync_queue] ordered by creation time.
+  Future<List<Map<String, dynamic>>> getPendingSyncItems() async {
+    final db = await database;
+    return db.query(syncQueueTable, orderBy: 'createdAt ASC');
+  }
+
+  /// Removes a successfully processed item from [sync_queue].
+  Future<void> removeSyncItem(String id) async {
+    final db = await database;
+    await db.delete(syncQueueTable, where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Increments the failure counter for a sync item.
+  Future<void> incrementSyncAttempts(String id) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE $syncQueueTable SET attempts = attempts + 1 WHERE id = ?',
+      [id],
+    );
+  }
+
+  /// Clears all items from [sync_queue] (call after a successful full push).
+  Future<void> clearSyncQueue() async {
+    final db = await database;
+    await db.delete(syncQueueTable);
+  }
+
+  // ── Sync lookup helpers ────────────────────────────────────────────────────
+
+  Future<Section?> getSectionById(String id) async {
+    final db   = await database;
+    final maps = await db.query(sectionTable, where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return Section.fromMap(maps.first);
+  }
+
+  Future<ReservedAmount?> getReservedAmountById(String id) async {
+    final db   = await database;
+    final maps = await db.query(
+        reservedAmountsTable, where: 'id = ?', whereArgs: [id]);
+    if (maps.isEmpty) return null;
+    return ReservedAmount.fromMap(maps.first);
+  }
+
+  // ── Raw map queries (used by SyncService._pushAllLocal) ───────────────────
+
+  /// Returns all sections as raw maps (no model conversion).
+  Future<List<Map<String, dynamic>>> getAllSectionsRaw() async {
+    final db = await database;
+    return db.query(sectionTable, orderBy: 'createdAt DESC');
+  }
+
+  /// Returns all non-invoice transactions as raw maps.
+  Future<List<Map<String, dynamic>>> getAllTransactionsRaw() async {
+    final db = await database;
+    return db.query(transactionTable, orderBy: 'date DESC');
+  }
+
+  /// Returns all reserved amounts as raw maps.
+  Future<List<Map<String, dynamic>>> getAllReservedAmountsRaw() async {
+    final db = await database;
+    return db.query(reservedAmountsTable, orderBy: 'createdAt DESC');
   }
 
   Future<void> saveSetting(String key, String value) async {
@@ -336,13 +470,16 @@ class DatabaseService {
     }
   }
 
-Future<void> addTransaction(trns.Transaction transaction) async {
+  Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
     await db.insert(
       transactionTable,
       transaction.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    await _enqueueSyncItem(db,
+        entityType: 'transactions', entityId: transaction.id,
+        operation: 'upsert', payload: transaction.toMap());
   }
 
   Future<void> updateTransaction(trns.Transaction transaction) async {
@@ -353,11 +490,17 @@ Future<void> addTransaction(trns.Transaction transaction) async {
       where: 'id = ?',
       whereArgs: [transaction.id],
     );
+    await _enqueueSyncItem(db,
+        entityType: 'transactions', entityId: transaction.id,
+        operation: 'upsert', payload: transaction.toMap());
   }
 
   Future<void> deleteTransaction(String id) async {
     final db = await database;
     await db.delete(transactionTable, where: 'id = ?', whereArgs: [id]);
+    await _enqueueSyncItem(db,
+        entityType: 'transactions', entityId: id,
+        operation: 'delete', payload: {'id': id});
   }
 
   Future<List<trns.Transaction>> getAllTransactions(String sectionId) async {
@@ -478,6 +621,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
     await db.insert(sectionTable, section.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
+    await _enqueueSyncItem(db,
+        entityType: 'sections', entityId: section.id,
+        operation: 'upsert', payload: section.toMap());
   }
 
   Future<void> updateSection(Section section) async {
@@ -488,6 +634,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
       where: 'id = ?',
       whereArgs: [section.id],
     );
+    await _enqueueSyncItem(db,
+        entityType: 'sections', entityId: section.id,
+        operation: 'upsert', payload: section.toMap());
   }
 
   Future<void> deleteSection(String id) async {
@@ -496,6 +645,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     await db
         .delete(reservedAmountsTable, where: 'sectionId = ?', whereArgs: [id]);
     await db.delete(sectionTable, where: 'id = ?', whereArgs: [id]);
+    await _enqueueSyncItem(db,
+        entityType: 'sections', entityId: id,
+        operation: 'delete', payload: {'id': id});
   }
 
   Future<List<Section>> getAllSections() async {
@@ -555,6 +707,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     final db = await database;
     await db.insert(reservedAmountsTable, reservedAmount.toMap(),
         conflictAlgorithm: ConflictAlgorithm.replace);
+    await _enqueueSyncItem(db,
+        entityType: 'reserved_amounts', entityId: reservedAmount.id,
+        operation: 'upsert', payload: reservedAmount.toMap());
   }
 
   Future<List<ReservedAmount>> getReservedAmounts(String sectionId) async {
@@ -576,6 +731,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
       where: 'id = ?',
       whereArgs: [reservedAmount.id],
     );
+    await _enqueueSyncItem(db,
+        entityType: 'reserved_amounts', entityId: reservedAmount.id,
+        operation: 'upsert', payload: reservedAmount.toMap());
   }
 
   Future<void> deleteReservedAmount(String id) async {
@@ -585,6 +743,9 @@ Future<void> addTransaction(trns.Transaction transaction) async {
       where: 'id = ?',
       whereArgs: [id],
     );
+    await _enqueueSyncItem(db,
+        entityType: 'reserved_amounts', entityId: id,
+        operation: 'delete', payload: {'id': id});
   }
 
   Future<double> getTotalReservedAmount(String sectionId) async {

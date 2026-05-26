@@ -8,6 +8,7 @@ library;
 import 'package:flutter/foundation.dart';
 import '../models/section.dart';
 import '../services/database_service.dart';
+import '../services/sync_service.dart';
 
 class AppDataProvider extends ChangeNotifier {
   final DatabaseService _db = DatabaseService();
@@ -51,5 +52,13 @@ class AppDataProvider extends ChangeNotifier {
 
   /// Alias for [refresh].  Call this after **any** data mutation: add, edit,
   /// or delete transaction, section, or reserved amount.
-  Future<void> invalidate() => refresh();
+  ///
+  /// Also triggers an incremental cloud sync (processes the local sync queue)
+  /// when the user is signed in.  The sync runs fire-and-forget so it never
+  /// blocks the UI update.
+  Future<void> invalidate() async {
+    await refresh();
+    // Fire-and-forget: no-op when Firebase is not configured or user is offline.
+    SyncService.instance.incrementalSync().ignore();
+  }
 }

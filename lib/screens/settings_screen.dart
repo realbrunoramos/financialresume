@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../providers/auth_provider.dart';
 import '../providers/language_provider.dart';
 import '../providers/subscription_provider.dart';
 import '../providers/theme_provider.dart';
@@ -14,6 +15,7 @@ import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/premium_badge.dart';
+import 'auth_screen.dart';
 import 'paywall_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -227,6 +229,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(AppTokens.sp16),
               children: [
+                // ── Cloud Sync ─────────────────────────────────────────────
+                _SectionLabel(label: 'Cloud Sync', isDark: isDark),
+                _CloudSyncTile(isDark: isDark),
+                const SizedBox(height: AppTokens.sp8),
+
                 // ── AI Section ─────────────────────────────────────────────
                 _SectionLabel(label: 'AI', isDark: isDark),
                 _SettingsCard(
@@ -792,6 +799,91 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ── Cloud Sync tile ──────────────────────────────────────────────────────────
+
+class _CloudSyncTile extends StatelessWidget {
+  final bool isDark;
+  const _CloudSyncTile({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+
+    return _SettingsCard(
+      isDark: isDark,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthScreen()),
+        ),
+        borderRadius: BorderRadius.circular(AppTokens.radius16),
+        child: Padding(
+          padding: const EdgeInsets.all(AppTokens.sp16),
+          child: Row(children: [
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: BoxDecoration(
+                color: auth.isSignedIn
+                    ? AppColors.success.withAlpha(isDark ? 40 : 20)
+                    : AppColors.info.withAlpha(isDark ? 40 : 20),
+                borderRadius: BorderRadius.circular(AppTokens.radius8),
+              ),
+              child: Icon(
+                auth.isSignedIn
+                    ? Icons.cloud_done_rounded
+                    : Icons.cloud_off_rounded,
+                size: 18,
+                color: auth.isSignedIn ? AppColors.success : AppColors.info,
+              ),
+            ),
+            const SizedBox(width: AppTokens.sp12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    auth.isSignedIn ? auth.userDisplayName : 'Sincronização na Nuvem',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.darkText : AppColors.dark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    auth.isSignedIn
+                        ? auth.isSyncing
+                            ? 'A sincronizar…'
+                            : 'Conta Google activa'
+                        : auth.cloudEnabled
+                            ? 'Inicie sessão para sincronizar dados'
+                            : 'Firebase não configurado',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.darkSubtext : AppColors.grey500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (auth.isSyncing)
+              const SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                color: isDark ? AppColors.darkSubtext : AppColors.grey400,
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 class _SettingsCard extends StatelessWidget {
