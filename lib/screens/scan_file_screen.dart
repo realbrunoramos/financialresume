@@ -57,8 +57,9 @@ class TextBasedDocumentImageProcessor {
 
   TextBasedDocumentImageProcessor(this._imageFile);
 
-  String get extractedText    => _ocr?.text          ?? '';
-  int    get detectedBlockCount => _ocr?.blocks.length ?? 0;
+  String          get extractedText     => _ocr?.text          ?? '';
+  int             get detectedBlockCount => _ocr?.blocks.length ?? 0;
+  RecognizedText? get ocr               => _ocr;
 
   // ── Initialise: OCR → rotate → crop ───────────────────────────────────────
 
@@ -210,6 +211,7 @@ class _ScanFileScreenState extends State<ScanFileScreen>
   bool    _showScanLine   = false;
 
   TextBasedDocumentImageProcessor? _processor;
+  RecognizedText? _ocrResult; // cached after processor disposal
 
   // ── Filters ────────────────────────────────────────────────────────────────
   int               _selectedFilter   = 0;
@@ -445,7 +447,9 @@ class _ScanFileScreenState extends State<ScanFileScreen>
       // 3. ML Kit data (before disposal)
       _mlKitText       = _processor?.extractedText     ?? '';
       _mlKitBlockCount = _processor?.detectedBlockCount ?? 0;
-      final parsed     = OcrParserService.parse(_mlKitText);
+      _ocrResult       = _processor?.ocr;                  // cache for AI fallback
+      final parsed     = OcrParserService.parse(
+          _mlKitText, recognizedText: _ocrResult);
       _mlKitConfidence = parsed.confidence;
 
       // 4. Full enhancement pipeline (Document filter = 0)
@@ -635,6 +639,7 @@ class _ScanFileScreenState extends State<ScanFileScreen>
       _selectedFilter = 0;
       _filterThumbs   = [];
       _showScanLine   = false;
+      _ocrResult      = null;
     });
     // Restart stream
     try { await _ctrl?.startImageStream(_onFrame); } catch (_) {}
@@ -659,7 +664,8 @@ class _ScanFileScreenState extends State<ScanFileScreen>
     try {
       final apiKey = await SecureStorageService.readApiKey();
       if (apiKey == null || apiKey.isEmpty) {
-        final parsed = OcrParserService.parse(_mlKitText);
+        final parsed = OcrParserService.parse(
+            _mlKitText, recognizedText: _ocrResult);
         if (mounted) {
           setState(() => _aiAnalysis = parsed.fields);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -722,7 +728,8 @@ class _ScanFileScreenState extends State<ScanFileScreen>
     } catch (e) {
       debugPrint('$errorLabel $e');
       if (_mlKitText.isNotEmpty) {
-        final parsed = OcrParserService.parse(_mlKitText);
+        final parsed = OcrParserService.parse(
+            _mlKitText, recognizedText: _ocrResult);
         if (mounted) setState(() => _aiAnalysis = parsed.fields);
       }
       if (mounted) {
