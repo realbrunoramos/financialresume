@@ -30,12 +30,6 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Google Services plugin — required for Firebase.
-// See FIREBASE_SETUP.md for configuration instructions.
-plugins {
-    id("com.google.gms.google-services") version "4.4.3" apply false
-}
-
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
