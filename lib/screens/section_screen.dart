@@ -804,7 +804,9 @@ class _SectionScreenState extends State<SectionScreen>
 // Sub-widgets
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── Financial header (inside SliverAppBar flexibleSpace) ──────────────────────
+// ── Financial header (inside SliverAppBar flexibleSpace) ─────────────────────
+// Revolut-inspired design: large balance, available/reserved progress bar,
+// metric pills at the bottom.
 class _FinancialHeader extends StatelessWidget {
   final _FinancialData data;
   final AppLocalizations l;
@@ -812,156 +814,144 @@ class _FinancialHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cur = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-    final available =
-        (data.balance - data.totalReserved).clamp(0.0, double.infinity);
-    final overReserved = data.totalReserved > data.balance;
+    final cur       = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final compact   = NumberFormat.compactCurrency(locale: 'pt_PT', symbol: '€');
+    final available = (data.balance - data.totalReserved).clamp(0.0, double.infinity);
+    final totalAbs  = data.balance.abs().clamp(1.0, double.infinity);
+    final availRatio = (available / totalAbs).clamp(0.0, 1.0);
 
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1C1C1E), Color(0xFF2C2C2E)],
+          colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(
-          AppTokens.sp20, 90, AppTokens.sp20, AppTokens.sp20),
+          AppTokens.sp20, 86, AppTokens.sp20, AppTokens.sp16),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Balance row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l.currentBalance,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFFAEAEB2),
-                      fontWeight: FontWeight.w500)),
-              Text(
-                cur.format(data.balance),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: data.balance >= 0
-                      ? AppColors.success
-                      : AppColors.danger,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
+          // ── Label ───────────────────────────────────────────────────────────
+          Text(
+            l.currentBalance,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF8899AA),
+              letterSpacing: 0.6,
+            ),
           ),
-          const SizedBox(height: AppTokens.sp8),
-          const _Divider(),
-          const SizedBox(height: AppTokens.sp8),
+          const SizedBox(height: 2),
 
-          // Available
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l.availableAmount,
-                  style: const TextStyle(
-                      fontSize: 12, color: Color(0xFF8E8E93))),
-              Text(
-                cur.format(available),
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: available <= 0
-                      ? AppColors.danger
-                      : AppColors.success,
-                ),
-              ),
-            ],
+          // ── Big balance ──────────────────────────────────────────────────────
+          Text(
+            cur.format(data.balance),
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: data.balance >= 0 ? Colors.white : AppColors.dangerLight,
+              letterSpacing: -1.0,
+              height: 1.1,
+            ),
           ),
-          const SizedBox(height: AppTokens.sp6),
+          const SizedBox(height: AppTokens.sp12),
 
-          // Reserved
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l.totalReserved,
-                  style: const TextStyle(
-                      fontSize: 12, color: Color(0xFF8E8E93))),
-              Row(children: [
-                if (overReserved) ...[
-                  Text(
-                    '+${cur.format(data.totalReserved - data.balance)} ',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.danger),
-                  ),
-                  Text(
-                    cur.format(data.balance),
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.danger),
-                  ),
-                ] else
-                  Text(
-                    cur.format(data.totalReserved),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: data.totalReserved > 0
-                          ? AppColors.warning
-                          : const Color(0xFF8E8E93),
-                    ),
-                  ),
-              ]),
-            ],
-          ),
-          const SizedBox(height: AppTokens.sp8),
-          const _Divider(),
-          const SizedBox(height: AppTokens.sp8),
-
-          // Daily limit
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(l.dailyLimit,
-                  style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFFAEAEB2),
-                      fontWeight: FontWeight.w500)),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    cur.format(data.dailyLimit),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: data.dailyLimit > 0
-                          ? AppColors.info
-                          : AppColors.danger,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  Text(
-                    '(${data.remainingDays} ${l.daysRemainingInMonth})',
-                    style: const TextStyle(
-                        fontSize: 10, color: Color(0xFF8E8E93)),
-                  ),
-                ],
+          // ── Available / Reserved progress bar ────────────────────────────────
+          if (data.balance > 0) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppTokens.radiusFull),
+              child: LinearProgressIndicator(
+                value: availRatio,
+                minHeight: 4,
+                backgroundColor: AppColors.warning.withAlpha(60),
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(AppColors.success),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppTokens.sp10),
+          ],
+
+          // ── Metric pills row ─────────────────────────────────────────────────
+          Row(children: [
+            _MetricPill(
+              icon:  Icons.wallet_rounded,
+              label: l.availableAmount,
+              value: compact.format(available),
+              color: available > 0 ? AppColors.success : AppColors.danger,
+            ),
+            const SizedBox(width: AppTokens.sp8),
+            if (data.totalReserved > 0)
+              _MetricPill(
+                icon:  Icons.savings_rounded,
+                label: l.totalReserved,
+                value: compact.format(data.totalReserved),
+                color: AppColors.warning,
+              ),
+            const SizedBox(width: AppTokens.sp8),
+            if (data.dailyLimit > 0)
+              _MetricPill(
+                icon:  Icons.calendar_today_rounded,
+                label: '${l.dailyLimit} / ${data.remainingDays}d',
+                value: compact.format(data.dailyLimit),
+                color: AppColors.info,
+              ),
+          ]),
         ],
       ),
     );
   }
 }
 
-class _Divider extends StatelessWidget {
-  const _Divider();
+class _MetricPill extends StatelessWidget {
+  final IconData icon;
+  final String   label;
+  final String   value;
+  final Color    color;
+
+  const _MetricPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        height: 1,
-        color: const Color(0xFF3A3A3C),
-      );
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(14),
+        borderRadius: BorderRadius.circular(AppTokens.radius8),
+        border: Border.all(color: Colors.white.withAlpha(20)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 11, color: color),
+        const SizedBox(width: 4),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              height: 1.1,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 8,
+              color: Color(0xFF8899AA),
+              height: 1.1,
+            ),
+          ),
+        ]),
+      ]),
+    );
+  }
 }
 
 // ── Financial header skeleton ──────────────────────────────────────────────────
@@ -975,45 +965,28 @@ class _FinancialHeaderSkeleton extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1C1C1E), Color(0xFF2C2C2E)],
+          colors: [Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460)],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(
-          AppTokens.sp20, 90, AppTokens.sp20, AppTokens.sp20),
-      child: Column(
+          AppTokens.sp20, 86, AppTokens.sp20, AppTokens.sp16),
+      child: const Column(
         mainAxisAlignment: MainAxisAlignment.end,
-        children: const [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              SkeletonBox(width: 100, height: 12, borderRadius: AppTokens.radius4),
-              SkeletonBox(width: 80, height: 18, borderRadius: AppTokens.radius4),
-            ],
-          ),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonBox(width: 90, height: 10, borderRadius: AppTokens.radius4),
+          SizedBox(height: 4),
+          SkeletonBox(width: 180, height: 30, borderRadius: AppTokens.radius8),
           SizedBox(height: AppTokens.sp12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              SkeletonBox(width: 80, height: 10, borderRadius: AppTokens.radius4),
-              SkeletonBox(width: 60, height: 14, borderRadius: AppTokens.radius4),
-            ],
-          ),
-          SizedBox(height: AppTokens.sp8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              SkeletonBox(width: 90, height: 10, borderRadius: AppTokens.radius4),
-              SkeletonBox(width: 60, height: 14, borderRadius: AppTokens.radius4),
-            ],
-          ),
-          SizedBox(height: AppTokens.sp16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              SkeletonBox(width: 70, height: 12, borderRadius: AppTokens.radius4),
-              SkeletonBox(width: 90, height: 16, borderRadius: AppTokens.radius4),
-            ],
-          ),
+          SkeletonBox(width: double.infinity, height: 4, borderRadius: AppTokens.radiusFull),
+          SizedBox(height: AppTokens.sp10),
+          Row(children: [
+            SkeletonBox(width: 80, height: 32, borderRadius: AppTokens.radius8),
+            SizedBox(width: 8),
+            SkeletonBox(width: 80, height: 32, borderRadius: AppTokens.radius8),
+            SizedBox(width: 8),
+            SkeletonBox(width: 80, height: 32, borderRadius: AppTokens.radius8),
+          ]),
         ],
       ),
     );
