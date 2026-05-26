@@ -1,14 +1,10 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mailer/mailer.dart';
-import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 import '../l10n/app_localizations.dart';
 import '../models/transaction.dart';
 import '../services/database_service.dart';
-import '../services/secure_storage_service.dart';
 import '../services/file_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
@@ -40,12 +36,8 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   bool? _paidToggle;
   final DatabaseService _dbService = DatabaseService();
   final FileService _fileService = FileService();
-  Map<String, dynamic>? _aiAnalysis;
   bool _showDueDate = false;
   bool _showMonthRef = false;
-  String? _email;
-  String? _password;
-  bool get _hasCredentials => _email != null && _password != null && _email!.isNotEmpty && _password!.isNotEmpty;
   String? _idInvoiceRef;
   String? _numSerie;
   String? _paymentMethod;
@@ -53,7 +45,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCredentials();
     if (widget.transaction != null) {
       _entityController.text = widget.transaction!.entity;
       _amountController.text = widget.transaction!.amount.toString();
@@ -86,133 +77,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     _dueDateController.dispose();
     _monthRefController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadCredentials() async {
-    final creds = await SecureStorageService.readEmailCredentials();
-    if (mounted) {
-      setState(() {
-        _email    = creds.email;
-        _password = creds.password;
-      });
-    }
-  }
-
-  Future<void> _showCredentialsDialog() async {
-    final l      = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final emailCtrl    = TextEditingController(text: _email);
-    final passwordCtrl = TextEditingController(text: _password);
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(AppTokens.sp12),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.darkCard : AppColors.white,
-              borderRadius: BorderRadius.circular(AppTokens.radius24),
-            ),
-            padding: const EdgeInsets.all(AppTokens.sp20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36, height: 4,
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.darkBorder : AppColors.grey200,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppTokens.sp16),
-                Text(l.configureEmailCredentials,
-                    style: TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.darkText : AppColors.dark)),
-                const SizedBox(height: AppTokens.sp16),
-                TextField(
-                  controller: emailCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    hintText: 'exemplo@gmail.com',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: AppTokens.sp12),
-                TextField(
-                  controller: passwordCtrl,
-                  decoration: InputDecoration(
-                    labelText: l.appPassword,
-                    hintText: l.forGmailUseAppPassword,
-                    prefixIcon: const Icon(Icons.lock_outline_rounded),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: AppTokens.sp8),
-                Text(
-                  l.forGmailEnableTwoStepVerificationAndGenerateAppPassword,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? AppColors.darkSubtext : AppColors.grey400,
-                      fontStyle: FontStyle.italic),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppTokens.sp20),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(l.cancel),
-                    ),
-                  ),
-                  const SizedBox(width: AppTokens.sp12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () async {
-                        await SecureStorageService.writeEmailCredentials(
-                          email:    emailCtrl.text,
-                          password: passwordCtrl.text,
-                        );
-                        if (mounted) {
-                          setState(() {
-                            _email    = emailCtrl.text;
-                            _password = passwordCtrl.text;
-                          });
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(l.credentialsSavedSuccessfully),
-                            backgroundColor: AppColors.success,
-                          ));
-                          _showComposeDialog();
-                        }
-                      },
-                      child: Text(l.save),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _handleEmailSend() {
-    if (!_hasCredentials) {
-      _showCredentialsDialog();
-    } else {
-      _showComposeDialog();
-    }
   }
 
   Future<String?> _showInvoiceSelectionDialog(String idsRef) async {
@@ -399,360 +263,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
     );
   }
 
-  Future<void> _showComposeDialog() async {
-    final recipientCtrl = TextEditingController();
-    final subjectCtrl = TextEditingController();
-    final bodyCtrl = TextEditingController();
-    bool isGenerating = false;
-
-    // Capture context values BEFORE the potential await below
-    final l      = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    if (_aiAnalysis != null) {
-      final entidade = _aiAnalysis!['entidade'] as String? ?? '';
-      if (entidade.isNotEmpty) {
-        final prevEmails =
-            await _dbService.getPreviousEmailsForEntity(entidade);
-        if (prevEmails.isNotEmpty) {
-          recipientCtrl.text = prevEmails.first['recipient'] as String;
-        }
-      }
-    }
-
-    if (!mounted) return;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: StatefulBuilder(
-          builder: (context, setSheetState) => SafeArea(
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkCard : AppColors.white,
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(AppTokens.radius24)),
-              ),
-              padding: const EdgeInsets.fromLTRB(
-                  AppTokens.sp20, AppTokens.sp12,
-                  AppTokens.sp20, AppTokens.sp20),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Handle
-                    Center(
-                      child: Container(
-                        width: 36, height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.grey200,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppTokens.sp12),
-                    Text(l.composeEmail,
-                        style: TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.w700,
-                            color: isDark ? AppColors.darkText : AppColors.dark)),
-                    const SizedBox(height: AppTokens.sp16),
-
-                    // To
-                    TextField(
-                      controller: recipientCtrl,
-                      decoration: InputDecoration(
-                        labelText: l.recipient,
-                        hintText: l.emailExample,
-                        prefixIcon: const Icon(Icons.email_outlined),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                    const SizedBox(height: AppTokens.sp12),
-
-                    // Subject
-                    TextField(
-                      controller: subjectCtrl,
-                      decoration: InputDecoration(
-                        labelText: l.subject,
-                        prefixIcon: const Icon(Icons.subject_rounded),
-                      ),
-                    ),
-                    const SizedBox(height: AppTokens.sp12),
-
-                    // Body
-                    TextField(
-                      controller: bodyCtrl,
-                      decoration: InputDecoration(
-                        labelText: l.messageBody,
-                        alignLabelWithHint: true,
-                        prefixIcon: const Padding(
-                          padding: EdgeInsets.only(bottom: 80),
-                          child: Icon(Icons.message_outlined),
-                        ),
-                      ),
-                      maxLines: 5,
-                    ),
-                    const SizedBox(height: AppTokens.sp12),
-
-                    // AI generate button
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: isGenerating ? null : () async {
-                          setSheetState(() => isGenerating = true);
-                          await _generateEmailContent(subjectCtrl, bodyCtrl);
-                          setSheetState(() => isGenerating = false);
-                        },
-                        icon: isGenerating
-                            ? const SizedBox(
-                                width: 16, height: 16,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2))
-                            : const Icon(Icons.auto_awesome_rounded, size: 18),
-                        label: Text(isGenerating
-                            ? l.generating
-                            : l.generateAISuggestion),
-                      ),
-                    ),
-
-                    // Attachment badge
-                    if (_receiptPaths.isNotEmpty) ...[
-                      const SizedBox(height: AppTokens.sp12),
-                      Container(
-                        padding: const EdgeInsets.all(AppTokens.sp12),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkSurface
-                              : AppColors.grey100,
-                          borderRadius:
-                              BorderRadius.circular(AppTokens.radius8),
-                        ),
-                        child: Row(children: [
-                          Icon(Icons.attach_file_rounded,
-                              color: isDark
-                                  ? AppColors.darkSubtext
-                                  : AppColors.grey500,
-                              size: 18),
-                          const SizedBox(width: AppTokens.sp8),
-                          Expanded(
-                            child: Text(
-                              '${l.attachmentFileName} ${_receiptPaths.first.split('/').last}',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: isDark
-                                      ? AppColors.darkSubtext
-                                      : AppColors.grey500),
-                            ),
-                          ),
-                        ]),
-                      ),
-                    ],
-
-                    const SizedBox(height: AppTokens.sp20),
-                    Row(children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(l.cancel),
-                        ),
-                      ),
-                      const SizedBox(width: AppTokens.sp12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            if (recipientCtrl.text.isEmpty ||
-                                subjectCtrl.text.isEmpty ||
-                                bodyCtrl.text.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(l.fillAllFields),
-                                    backgroundColor: AppColors.warning),
-                              );
-                              return;
-                            }
-                            Navigator.pop(context);
-                            await _sendEmail(
-                              recipient: recipientCtrl.text,
-                              subject:   subjectCtrl.text,
-                              body:      bodyCtrl.text,
-                            );
-                          },
-                          icon: const Icon(Icons.send_rounded, size: 18),
-                          label: Text(l.send),
-                        ),
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _generateEmailContent(TextEditingController subjectCtrl,
-      TextEditingController bodyCtrl) async {
-    // Capture context-dependent values BEFORE any await
-    final noAnalysisMsg  =
-        AppLocalizations.of(context).aiAnalysisNotAvailableScanDocumentFirst;
-    final promptLang     = AppLocalizations.of(context).promptLanguage;
-    final aiGenErrorMsg  = AppLocalizations.of(context).aiGenerationError;
-
-    if (_aiAnalysis == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(noAnalysisMsg)),
-      );
-      return;
-    }
-
-    final entidade   = _aiAnalysis!['entidade']   as String? ?? _entityController.text;
-    final descricao  = _aiAnalysis!['descrição']  as String? ?? _descriptionController.text;
-    final mesAnoRef  = _aiAnalysis!['mes_ano_ref'] as String? ?? _monthRefController.text;
-    final valorTotal = _aiAnalysis!['valor_total'] as String? ?? _amountController.text;
-    final currentMonth = DateFormat('MMMM yyyy', 'pt').format(_selectedDate);
-
-    final previousEmails =
-        await _dbService.getPreviousEmailsForEntity(entidade);
-    String previousStr = '';
-    if (previousEmails.isNotEmpty) {
-
-      final limitedEmails = previousEmails.take(2);
-      previousStr = limitedEmails.map((e) =>
-      'Data de Emissão: ${e['emission_date']}\nAssunto: ${e['subject']}\nCorpo: ${e['body']}\n\n'
-      ).join();
-    }
-
-    final prompt = """
-    Baseado nos seguintes dados de transação:
-    - Entidade: $entidade
-    - Descrição: $descricao
-    - Mês/Ano Referência: $mesAnoRef
-    - Valor: $valorTotal
-    - Mês atual: $currentMonth
-
-    Analise os emails anteriores para esta entidade (use padrões semelhantes, adaptando para o novo mês e detalhes):
-    $previousStr
-
-    Gere um assunto e corpo de email padrão em português para envio de comprovativo de pagamento.
-    O assunto deve seguir o padrão dos anteriores, adaptando para o novo mês: $currentMonth.
-    O corpo deve ser uma mensagem educada, mencionando o anexo, o valor e os detalhes, terminando com saudações.
-
-    Responda APENAS com um objeto JSON de linha única:
-    {"subject": "assunto gerado", "body": "corpo gerado"}
-    Sem texto adicional.
-    (Atenção: o output deve ser no idioma: $promptLang)
-    """;
-
-    try {
-      final apiKey = await SecureStorageService.readApiKey();
-
-      Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [
-            {
-              'parts': [
-                {'text': prompt}
-              ]
-            }
-          ],
-
-          'generationConfig': {
-            'temperature': 0.7,
-            'topK': 40,
-            'topP': 0.95,
-            'maxOutputTokens': 512,
-          }
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['candidates'][0]['content']['parts'][0]['text'];
-
-        final jsonMatch = RegExp(r'\{.*\}').firstMatch(content);
-        if (jsonMatch != null) {
-          final genResult = jsonDecode(jsonMatch.group(0)!);
-          if (mounted) {
-            subjectCtrl.text = genResult['subject'] ?? '';
-            bodyCtrl.text = genResult['body'] ?? '';
-          }
-        } else {
-          throw Exception('JSON não encontrado na resposta');
-        }
-      } else {
-        throw Exception('Erro na API Gemini: ${response.statusCode}');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$aiGenErrorMsg $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _sendEmail(
-      {required String recipient,
-      required String subject,
-      required String body}) async {
-    // Capture context values BEFORE the await
-    final successMsg = AppLocalizations.of(context).emailSentSuccessfully;
-    final errorMsg   = AppLocalizations.of(context).errorSendingEmail;
-
-    try {
-      final message = Message()
-        ..from = Address(_email!, 'Financial Resume App')
-        ..recipients.add(recipient)
-        ..subject = subject
-        ..html = body;
-
-      if (_receiptPaths.isNotEmpty) {
-        message.attachments.add(FileAttachment(File(_receiptPaths.first)));
-      }
-
-      final entity       = _aiAnalysis?['entidade'] as String? ?? _entityController.text;
-      final emissionDate = DateFormat('dd/MM/yyyy').format(_selectedDate);
-      await _dbService.addSentEmail({
-        'entity':        entity,
-        'recipient':     recipient,
-        'subject':       subject,
-        'body':          body,
-        'sentAt':        DateTime.now().toIso8601String(),
-        'emission_date': emissionDate,
-      });
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMsg)),
-      );
-    } on MailerException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '$errorMsg ${e.problems.map((p) => '${p.code}: ${p.msg}').join(', ')}'),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$errorMsg: $e')),
-      );
-    }
-  }
-
   Future<void> _scanDocument() async {
     final result = await Navigator.push(
       context,
@@ -790,7 +300,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         setState(() {
           _idInvoiceRef = idInvoiceRef;
           _isCreditToggle = eCredito == '1';
-          _aiAnalysis = aiResult;
           _selectedDocType = tipo.toString();
           _entityController.text = entidade;
           _descriptionController.text = descricao;
@@ -1011,13 +520,6 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
           widget.transaction == null ? l.newTransaction : l.editTransaction,
           style: const TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.email_rounded),
-            onPressed: _handleEmailSend,
-            tooltip: l.send,
-          ),
-        ],
       ),
       body: Padding(
         padding: EdgeInsets.all(16),
@@ -1230,6 +732,10 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
                     icon: const Icon(Icons.document_scanner_rounded),
                     label: Text(l.scanDocument),
                     style: OutlinedButton.styleFrom(
+                      // Explicit foregroundColor prevents the icon and label
+                      // from inheriting black in dark mode.
+                      foregroundColor:
+                          isDark ? AppColors.darkText : AppColors.dark,
                       padding: const EdgeInsets.symmetric(
                           vertical: AppTokens.sp14),
                       side: BorderSide(

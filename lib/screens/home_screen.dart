@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/section.dart';
+import '../providers/app_data_provider.dart';
 import '../services/database_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
@@ -25,14 +27,12 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final DatabaseService _db = DatabaseService();
   final TextEditingController _nameCtrl = TextEditingController();
-  late Future<List<Section>> _sectionsFuture;
   late AnimationController _fabAnimCtrl;
   late Animation<double> _fabAnim;
 
   @override
   void initState() {
     super.initState();
-    _sectionsFuture = _db.getAllSections();
     _fabAnimCtrl = AnimationController(
       vsync: this,
       duration: AppTokens.normal,
@@ -48,7 +48,9 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  void _reload() => setState(() => _sectionsFuture = _db.getAllSections());
+  void _reload() {
+    if (mounted) context.read<AppDataProvider>().invalidate();
+  }
 
   // ── Gradiente por índice ──────────────────────────────────────────────────
   LinearGradient _gradient(int index) {
@@ -279,25 +281,14 @@ class _HomeScreenState extends State<HomeScreen>
       ),
 
       // ── Body ───────────────────────────────────────────────────────────────
-      body: FutureBuilder<List<Section>>(
-        future: _sectionsFuture,
-        builder: (context, snap) {
-          // Loading
-          if (snap.connectionState == ConnectionState.waiting) {
+      body: Consumer<AppDataProvider>(
+        builder: (context, appData, _) {
+          // First-time load: show skeleton
+          if (!appData.initialized) {
             return _buildLoadingBody();
           }
 
-          // Erro
-          if (snap.hasError) {
-            return EmptyState(
-              icon: Icons.cloud_off_rounded,
-              title: loc.errorLoadingSections,
-              actionLabel: loc.tryAgain,
-              onAction: _reload,
-            );
-          }
-
-          final sections = snap.data ?? [];
+          final sections = appData.sections;
 
           // Sem secções
           if (sections.isEmpty) {
@@ -361,7 +352,7 @@ class _HomeScreenState extends State<HomeScreen>
       slivers: [
         // Cabeçalho de resumo total (apenas quando há secções)
         SliverToBoxAdapter(
-          child: _TotalSummaryHeader(sections: sections, db: _db, isDark: isDark),
+          child: _TotalSummaryHeader(sectionCount: sections.length, isDark: isDark),
         ),
 
         // Grid de secções
@@ -403,44 +394,29 @@ class _HomeScreenState extends State<HomeScreen>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HEADER DE RESUMO TOTAL
+// Reads balance directly from AppDataProvider — no FutureBuilder, no DB call.
 // ═══════════════════════════════════════════════════════════════════════════════
-class _TotalSummaryHeader extends StatefulWidget {
-  final List<Section> sections;
-  final DatabaseService db;
+class _TotalSummaryHeader extends StatelessWidget {
+  final int  sectionCount;
   final bool isDark;
 
   const _TotalSummaryHeader({
-    required this.sections,
-    required this.db,
+    required this.sectionCount,
     required this.isDark,
   });
 
   @override
-  State<_TotalSummaryHeader> createState() => _TotalSummaryHeaderState();
-}
-
-class _TotalSummaryHeaderState extends State<_TotalSummaryHeader> {
-  late Future<double> _totalFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _totalFuture = widget.db.getTotalBalance();
-  }
-
-  @override
-  void didUpdateWidget(_TotalSummaryHeader oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Refresh whenever the section list changes (add / delete / rename).
-    if (oldWidget.sections != widget.sections) {
-      setState(() => _totalFuture = widget.db.getTotalBalance());
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-    final loc = AppLocalizations.of(context);
+    // Use select to rebuild only when totalBalance or loading flag changes.
+    final balance = context.select<AppDataProvider, double>(
+      (p) => p.totalBalance,
+    );
+    final isLoadingFirst = context.select<AppDataProvider, bool>(
+      (p) => !p.initialized && p.loading,
+    );
+    final currency   = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final loc        = AppLocalizations.of(context);
+    final isPositive = balance >= 0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -453,87 +429,79 @@ class _TotalSummaryHeaderState extends State<_TotalSummaryHeader> {
           borderRadius: BorderRadius.circular(AppTokens.radius20),
           boxShadow: AppTokens.shadowLg,
         ),
-        child: FutureBuilder<double>(
-          future: _totalFuture,
-          builder: (_, snap) {
-            final balance = snap.data ?? 0;
-            final isPositive = balance >= 0;
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      loc.currentBalance,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTokens.sp8, vertical: AppTokens.sp4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(20),
-                        borderRadius: BorderRadius.circular(AppTokens.radiusFull),
-                      ),
-                      child: Text(
-                        '${widget.sections.length} ${loc.sectionsCreated}',
-                        style: const TextStyle(
-                          color: Colors.white70, fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
+                Text(
+                  loc.currentBalance,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-                const SizedBox(height: AppTokens.sp8),
-                snap.connectionState == ConnectionState.waiting
-                    ? const SkeletonBox(width: 160, height: 32,
-                        borderRadius: AppTokens.radius8)
-                    : Text(
-                        currency.format(balance),
-                        style: TextStyle(
-                          color: isPositive ? Colors.white : AppColors.dangerLight,
-                          fontSize: 30,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.8,
-                          height: 1.1,
-                        ),
-                      ),
-                const SizedBox(height: AppTokens.sp4),
-                Row(
-                  children: [
-                    Icon(
-                      isPositive
-                          ? Icons.trending_up_rounded
-                          : Icons.trending_down_rounded,
-                      size: 14,
-                      color: isPositive
-                          ? AppColors.successLight
-                          : AppColors.dangerLight,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTokens.sp8, vertical: AppTokens.sp4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(20),
+                    borderRadius: BorderRadius.circular(AppTokens.radiusFull),
+                  ),
+                  child: Text(
+                    '$sectionCount ${loc.sectionsCreated}',
+                    style: const TextStyle(
+                      color: Colors.white70, fontSize: 11,
+                      fontWeight: FontWeight.w500,
                     ),
-                    const SizedBox(width: AppTokens.sp4),
-                    Text(
-                      isPositive ? loc.positiveBalance : loc.negativeBalance,
-                      style: TextStyle(
-                        color: isPositive
-                            ? AppColors.successLight
-                            : AppColors.dangerLight,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
-            );
-          },
+            ),
+            const SizedBox(height: AppTokens.sp8),
+            isLoadingFirst
+                ? const SkeletonBox(width: 160, height: 32,
+                    borderRadius: AppTokens.radius8)
+                : Text(
+                    currency.format(balance),
+                    style: TextStyle(
+                      color: isPositive ? Colors.white : AppColors.dangerLight,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.8,
+                      height: 1.1,
+                    ),
+                  ),
+            const SizedBox(height: AppTokens.sp4),
+            Row(
+              children: [
+                Icon(
+                  isPositive
+                      ? Icons.trending_up_rounded
+                      : Icons.trending_down_rounded,
+                  size: 14,
+                  color: isPositive
+                      ? AppColors.successLight
+                      : AppColors.dangerLight,
+                ),
+                const SizedBox(width: AppTokens.sp4),
+                Text(
+                  isPositive ? loc.positiveBalance : loc.negativeBalance,
+                  style: TextStyle(
+                    color: isPositive
+                        ? AppColors.successLight
+                        : AppColors.dangerLight,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -584,6 +552,14 @@ class _SectionCardState extends State<_SectionCard>
     _scaleAnim = Tween<double>(begin: 1.0, end: 0.965).animate(
       CurvedAnimation(parent: _pressCtrl, curve: AppTokens.easeOut),
     );
+    _statsFuture = widget.loadStats();
+  }
+
+  @override
+  void didUpdateWidget(_SectionCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // AppDataProvider notifies → HomeScreen rebuilds → this is called.
+    // Fetch fresh stats so count + balance stay in sync after any mutation.
     _statsFuture = widget.loadStats();
   }
 

@@ -7,6 +7,7 @@ import '../l10n/app_localizations.dart';
 import '../models/section.dart';
 import '../models/transaction.dart';
 import '../models/reserved_amount.dart';
+import '../providers/app_data_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/database_service.dart';
 import '../widgets/transaction_list_tile.dart';
@@ -213,7 +214,12 @@ class _SectionScreenState extends State<SectionScreen>
     _hasMore       = true;
     _isLoadingMore = false;
     final d = await _load();
-    if (mounted) setState(() => _future = Future.value(d));
+    if (mounted) {
+      setState(() => _future = Future.value(d));
+      // Propagate the change to HomeScreen so balance + card stats update
+      // without requiring the user to navigate back first.
+      context.read<AppDataProvider>().invalidate();
+    }
   }
 
   /// Filters the in-memory list when the query is empty; queries the DB for
@@ -584,7 +590,18 @@ class _SectionScreenState extends State<SectionScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l      = AppLocalizations.of(context);
 
-    return Scaffold(
+    return PopScope(
+      // When the search bar is active, the back gesture should dismiss the
+      // keyboard / search focus instead of popping the entire screen.
+      canPop: !_searchFocused,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _searchFocused) {
+          _searchFocus.unfocus();
+          _searchCtrl.clear();
+          _filter();
+        }
+      },
+      child: Scaffold(
       backgroundColor:
           isDark ? AppColors.darkBackground : const Color(0xFFF5F5F7),
       body: GestureDetector(
@@ -778,7 +795,8 @@ class _SectionScreenState extends State<SectionScreen>
           foregroundColor: AppColors.white,
         ),
       ),
-    );
+    ),   // closes Scaffold
+    );   // closes PopScope
   }
 }
 
