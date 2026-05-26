@@ -370,6 +370,29 @@ class AppLocalizations {
       'documentCategory':    'Category',
       'aiInsights':          'Insights',
       'configureApiKeyForAi': 'Configure the API key to enable AI analysis',
+      // IAP subscription
+      'upgradeToPremium':    'Upgrade to Premium',
+      'paywallTitle':        'Unlock the full power',
+      'paywallSubtitle':     'AI analysis, unlimited scans and advanced insights',
+      'monthly':             'Monthly',
+      'annual':              'Annual',
+      'save33':              'Save 33%',
+      'startPremium':        'Start Premium',
+      'restorePurchases':    'Restore Purchases',
+      'currentPlan':         'Current Plan',
+      'managePlan':          'Manage Plan',
+      'cancelAnytime':       'Cancel anytime',
+      'premiumActive':       'Premium Active',
+      'scansThisMonth':      'Scans this month',
+      'aiCallsRemaining':    'AI calls remaining',
+      'sectionsUsed':        'Sections used',
+      'featureLocked':       'Premium Feature',
+      'unlockFeature':       'Unlock with Premium',
+      'purchaseSuccess':     'Welcome to Premium!',
+      'purchaseFailed':      'Purchase failed. Please try again.',
+      'purchaseRestored':    'Purchases restored successfully!',
+      'noPurchasesToRestore': 'No purchases to restore.',
+      'planManagement':      'Plan & Subscription',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -727,6 +750,29 @@ class AppLocalizations {
       'documentCategory':    'Categoria',
       'aiInsights':          'Insights',
       'configureApiKeyForAi': 'Configure a API key para activar a análise IA',
+      // IAP subscription
+      'upgradeToPremium':    'Upgrade para Premium',
+      'paywallTitle':        'Desbloqueia todo o potencial',
+      'paywallSubtitle':     'Análise IA, digitalizações ilimitadas e insights avançados',
+      'monthly':             'Mensal',
+      'annual':              'Anual',
+      'save33':              'Poupa 33%',
+      'startPremium':        'Iniciar Premium',
+      'restorePurchases':    'Restaurar Compras',
+      'currentPlan':         'Plano Atual',
+      'managePlan':          'Gerir Plano',
+      'cancelAnytime':       'Cancela quando quiseres',
+      'premiumActive':       'Premium Ativo',
+      'scansThisMonth':      'Digitalizações este mês',
+      'aiCallsRemaining':    'Chamadas IA restantes',
+      'sectionsUsed':        'Secções utilizadas',
+      'featureLocked':       'Funcionalidade Premium',
+      'unlockFeature':       'Desbloquear com Premium',
+      'purchaseSuccess':     'Bem-vindo ao Premium!',
+      'purchaseFailed':      'Compra falhada. Tenta novamente.',
+      'purchaseRestored':    'Compras restauradas com sucesso!',
+      'noPurchasesToRestore': 'Sem compras para restaurar.',
+      'planManagement':      'Plano e Subscrição',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1084,6 +1130,29 @@ class AppLocalizations {
       'documentCategory':    'Categoría',
       'aiInsights':          'Insights',
       'configureApiKeyForAi': 'Configure la clave API para activar el análisis IA',
+      // IAP subscription
+      'upgradeToPremium':    'Actualizar a Premium',
+      'paywallTitle':        'Desbloquea todo el potencial',
+      'paywallSubtitle':     'Análisis IA, escaneos ilimitados e insights avanzados',
+      'monthly':             'Mensual',
+      'annual':              'Anual',
+      'save33':              'Ahorra 33%',
+      'startPremium':        'Iniciar Premium',
+      'restorePurchases':    'Restaurar Compras',
+      'currentPlan':         'Plan Actual',
+      'managePlan':          'Gestionar Plan',
+      'cancelAnytime':       'Cancela cuando quieras',
+      'premiumActive':       'Premium Activo',
+      'scansThisMonth':      'Escaneos este mes',
+      'aiCallsRemaining':    'Llamadas IA restantes',
+      'sectionsUsed':        'Secciones usadas',
+      'featureLocked':       'Función Premium',
+      'unlockFeature':       'Desbloquear con Premium',
+      'purchaseSuccess':     '¡Bienvenido a Premium!',
+      'purchaseFailed':      'Compra fallida. Inténtalo de nuevo.',
+      'purchaseRestored':    '¡Compras restauradas con éxito!',
+      'noPurchasesToRestore': 'Sin compras para restaurar.',
+      'planManagement':      'Plan y Suscripción',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1441,6 +1510,29 @@ class AppLocalizations {
       'documentCategory':    'Catégorie',
       'aiInsights':          'Insights',
       'configureApiKeyForAi': 'Configurez la clé API pour activer l\'analyse IA',
+      // IAP subscription
+      'upgradeToPremium':    'Passer à Premium',
+      'paywallTitle':        'Déverrouillez toute la puissance',
+      'paywallSubtitle':     'Analyse IA, numérisations illimitées et insights avancés',
+      'monthly':             'Mensuel',
+      'annual':              'Annuel',
+      'save33':              'Économisez 33%',
+      'startPremium':        'Démarrer Premium',
+      'restorePurchases':    'Restaurer les Achats',
+      'currentPlan':         'Plan Actuel',
+      'managePlan':          'Gérer le Plan',
+      'cancelAnytime':       'Annulez à tout moment',
+      'premiumActive':       'Premium Actif',
+      'scansThisMonth':      'Numérisations ce mois',
+      'aiCallsRemaining':    'Appels IA restants',
+      'sectionsUsed':        'Sections utilisées',
+      'featureLocked':       'Fonctionnalité Premium',
+      'unlockFeature':       'Déverrouiller avec Premium',
+      'purchaseSuccess':     'Bienvenue dans Premium !',
+      'purchaseFailed':      'Achat échoué. Réessayez.',
+      'purchaseRestored':    'Achats restaurés avec succès !',
+      'noPurchasesToRestore': 'Aucun achat à restaurer.',
+      'planManagement':      'Plan et Abonnement',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1798,6 +1890,29 @@ class AppLocalizations {
       'documentCategory':    'Категория',
       'aiInsights':          'Выводы',
       'configureApiKeyForAi': 'Настройте API ключ для анализа ИИ',
+      // IAP subscription
+      'upgradeToPremium':    'Перейти на Premium',
+      'paywallTitle':        'Откройте все возможности',
+      'paywallSubtitle':     'Анализ ИИ, неограниченное сканирование и аналитика',
+      'monthly':             'Ежемесячно',
+      'annual':              'Ежегодно',
+      'save33':              'Экономия 33%',
+      'startPremium':        'Начать Premium',
+      'restorePurchases':    'Восстановить покупки',
+      'currentPlan':         'Текущий план',
+      'managePlan':          'Управление планом',
+      'cancelAnytime':       'Отмена в любое время',
+      'premiumActive':       'Premium активен',
+      'scansThisMonth':      'Сканирований в этом месяце',
+      'aiCallsRemaining':    'Осталось вызовов ИИ',
+      'sectionsUsed':        'Использовано разделов',
+      'featureLocked':       'Функция Premium',
+      'unlockFeature':       'Открыть с Premium',
+      'purchaseSuccess':     'Добро пожаловать в Premium!',
+      'purchaseFailed':      'Ошибка покупки. Попробуйте снова.',
+      'purchaseRestored':    'Покупки успешно восстановлены!',
+      'noPurchasesToRestore': 'Нет покупок для восстановления.',
+      'planManagement':      'План и подписка',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -2155,6 +2270,29 @@ class AppLocalizations {
       'documentCategory':    '类别',
       'aiInsights':          '洞察',
       'configureApiKeyForAi': '配置 API 密钥以启用 AI 分析',
+      // IAP subscription
+      'upgradeToPremium':    '升级到 Premium',
+      'paywallTitle':        '解锁全部功能',
+      'paywallSubtitle':     'AI 分析，无限次扫描和高级洞察',
+      'monthly':             '每月',
+      'annual':              '每年',
+      'save33':              '节省 33%',
+      'startPremium':        '开始 Premium',
+      'restorePurchases':    '恢复购买',
+      'currentPlan':         '当前计划',
+      'managePlan':          '管理计划',
+      'cancelAnytime':       '随时取消',
+      'premiumActive':       'Premium 已激活',
+      'scansThisMonth':      '本月扫描次数',
+      'aiCallsRemaining':    '剩余 AI 调用次数',
+      'sectionsUsed':        '已使用版块',
+      'featureLocked':       'Premium 功能',
+      'unlockFeature':       '用 Premium 解锁',
+      'purchaseSuccess':     '欢迎使用 Premium！',
+      'purchaseFailed':      '购买失败，请重试。',
+      'purchaseRestored':    '购买已成功恢复！',
+      'noPurchasesToRestore': '没有可恢复的购买。',
+      'planManagement':      '计划和订阅',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2512,6 +2650,29 @@ class AppLocalizations {
       'documentCategory':    'Categoria',
       'aiInsights':          'Insights',
       'configureApiKeyForAi': 'Configura la chiave API per attivare l\'analisi IA',
+      // IAP subscription
+      'upgradeToPremium':    'Passa a Premium',
+      'paywallTitle':        'Sblocca tutta la potenza',
+      'paywallSubtitle':     'Analisi IA, scansioni illimitate e insight avanzati',
+      'monthly':             'Mensile',
+      'annual':              'Annuale',
+      'save33':              'Risparmia 33%',
+      'startPremium':        'Inizia Premium',
+      'restorePurchases':    'Ripristina Acquisti',
+      'currentPlan':         'Piano Attuale',
+      'managePlan':          'Gestisci Piano',
+      'cancelAnytime':       'Annulla quando vuoi',
+      'premiumActive':       'Premium Attivo',
+      'scansThisMonth':      'Scansioni questo mese',
+      'aiCallsRemaining':    'Chiamate IA rimanenti',
+      'sectionsUsed':        'Sezioni utilizzate',
+      'featureLocked':       'Funzione Premium',
+      'unlockFeature':       'Sblocca con Premium',
+      'purchaseSuccess':     'Benvenuto in Premium!',
+      'purchaseFailed':      'Acquisto fallito. Riprova.',
+      'purchaseRestored':    'Acquisti ripristinati con successo!',
+      'noPurchasesToRestore': 'Nessun acquisto da ripristinare.',
+      'planManagement':      'Piano e Abbonamento',
     },
   };
 
@@ -2884,6 +3045,30 @@ class AppLocalizations {
   String get documentCategory     => _getText('documentCategory')!;
   String get aiInsights           => _getText('aiInsights')!;
   String get configureApiKeyForAi => _getText('configureApiKeyForAi')!;
+
+  // IAP subscription strings
+  String get upgradeToPremium     => _getText('upgradeToPremium')!;
+  String get paywallTitle         => _getText('paywallTitle')!;
+  String get paywallSubtitle      => _getText('paywallSubtitle')!;
+  String get monthly              => _getText('monthly')!;
+  String get annual               => _getText('annual')!;
+  String get save33               => _getText('save33')!;
+  String get startPremium         => _getText('startPremium')!;
+  String get restorePurchases     => _getText('restorePurchases')!;
+  String get currentPlan          => _getText('currentPlan')!;
+  String get managePlan           => _getText('managePlan')!;
+  String get cancelAnytime        => _getText('cancelAnytime')!;
+  String get premiumActive        => _getText('premiumActive')!;
+  String get scansThisMonth       => _getText('scansThisMonth')!;
+  String get aiCallsRemaining     => _getText('aiCallsRemaining')!;
+  String get sectionsUsed         => _getText('sectionsUsed')!;
+  String get featureLocked        => _getText('featureLocked')!;
+  String get unlockFeature        => _getText('unlockFeature')!;
+  String get purchaseSuccess      => _getText('purchaseSuccess')!;
+  String get purchaseFailed       => _getText('purchaseFailed')!;
+  String get purchaseRestored     => _getText('purchaseRestored')!;
+  String get noPurchasesToRestore => _getText('noPurchasesToRestore')!;
+  String get planManagement       => _getText('planManagement')!;
 
 }
 

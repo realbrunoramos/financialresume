@@ -53,6 +53,13 @@ class AppColors {
   static const Color darkText       = Color(0xFFF2F2F7);
   static const Color darkSubtext    = Color(0xFF8E8E93);
 
+  // ─── PREMIUM ──────────────────────────────────────────────────────────────
+  static const Color premium      = Color(0xFF7C3AED);
+  static const Color premiumSoft  = Color(0xFF8B5CF6);
+  static const Color premiumGold  = Color(0xFFF59E0B);
+  static const Color premiumDeep  = Color(0xFF6D28D9);
+  static const Color premiumLight = Color(0xFFEDE9FE);
+
   // ─── GRADIENTES ───────────────────────────────────────────────────────────
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,

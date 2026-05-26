@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/language_provider.dart';
+import '../providers/subscription_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ai_cache_service.dart';
 import '../services/biometric_service.dart';
@@ -12,6 +13,8 @@ import '../services/subscription_service.dart';
 import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/premium_badge.dart';
+import 'paywall_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -28,7 +31,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool     _obscure         = true;
   bool     _biometricEnabled   = false;
   bool     _biometricAvailable = false;
-  AppPlan  _plan            = AppPlan.free;
   UsageStats? _usageStats;
   int      _cacheSize       = 0;
 
@@ -84,7 +86,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ? langKey : 'pt';
         _biometricAvailable = bioAvail;
         _biometricEnabled   = bioEnab;
-        _plan       = plan;
         _usageStats = stats;
         _cacheSize  = cache;
         _loading    = false;
@@ -364,112 +365,109 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: AppTokens.sp12),
 
-                // ── Plan Status card ───────────────────────────────────────
-                _SettingsCard(
-                  isDark: isDark,
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppTokens.sp16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Header row
-                        Row(children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: (_plan == AppPlan.premium
-                                      ? AppColors.success
-                                      : AppColors.grey400)
-                                  .withAlpha(isDark ? 40 : 20),
-                              borderRadius:
-                                  BorderRadius.circular(AppTokens.radius8),
-                            ),
-                            child: Icon(
-                              _plan == AppPlan.premium
-                                  ? Icons.star_rounded
-                                  : Icons.star_border_rounded,
-                              color: _plan == AppPlan.premium
-                                  ? AppColors.success
-                                  : AppColors.grey400,
-                              size: 18,
-                            ),
-                          ),
-                          const SizedBox(width: AppTokens.sp12),
-                          Expanded(
-                            child: Text(l.planStatus,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark
-                                      ? AppColors.darkText
-                                      : AppColors.dark,
-                                )),
-                          ),
-                          // Plan badge pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _plan == AppPlan.premium
-                                  ? AppColors.success.withAlpha(isDark ? 50 : 30)
-                                  : AppColors.grey200,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _plan == AppPlan.premium
-                                  ? l.premiumPlan
-                                  : l.freePlan,
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: _plan == AppPlan.premium
-                                    ? AppColors.success
-                                    : AppColors.grey500,
+                // ── Plan & Subscription card ───────────────────────────────
+                Consumer<SubscriptionProvider>(
+                  builder: (ctx, sub, _) => _SettingsCard(
+                    isDark: isDark,
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppTokens.sp16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Header row
+                          Row(children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: (sub.isPremium
+                                        ? AppColors.premium
+                                        : AppColors.grey400)
+                                    .withAlpha(isDark ? 40 : 20),
+                                borderRadius:
+                                    BorderRadius.circular(AppTokens.radius8),
+                              ),
+                              child: Icon(
+                                sub.isPremium
+                                    ? Icons.workspace_premium_rounded
+                                    : Icons.workspace_premium_outlined,
+                                color: sub.isPremium
+                                    ? AppColors.premium
+                                    : AppColors.grey400,
+                                size: 18,
                               ),
                             ),
-                          ),
-                        ]),
+                            const SizedBox(width: AppTokens.sp12),
+                            Expanded(
+                              child: Text(l.planManagement,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.darkText
+                                        : AppColors.dark,
+                                  )),
+                            ),
+                            PremiumPlanBadge(isPremium: sub.isPremium),
+                          ]),
 
-                        // Premium usage stats
-                        if (_plan == AppPlan.premium &&
-                            _usageStats != null) ...[
-                          const SizedBox(height: AppTokens.sp12),
-                          const Divider(),
-                          const SizedBox(height: AppTokens.sp8),
-                          // Progress bar
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: _usageStats!.dailyProgress,
-                              minHeight: 6,
-                              backgroundColor: isDark
-                                  ? AppColors.darkBorder
-                                  : AppColors.grey100,
-                              valueColor: AlwaysStoppedAnimation(
-                                  _usageStats!.isAtDailyLimit
-                                      ? AppColors.danger
-                                      : AppColors.success),
-                            ),
-                          ),
-                          const SizedBox(height: AppTokens.sp6),
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                '${_usageStats!.callsToday} / '
-                                '${_usageStats!.limitDaily} '
-                                '${l.aiCallsToday}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isDark
-                                      ? AppColors.darkSubtext
-                                      : AppColors.grey500,
-                                ),
+                          // BYOK hint (shown for BYOK users who aren't IAP premium)
+                          if (sub.isPremiumByok && !sub.isPremiumIap) ...[
+                            const SizedBox(height: AppTokens.sp8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.premiumLight.withAlpha(isDark ? 30 : 100),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              if (_cacheSize > 0)
+                              child: Row(children: [
+                                const Icon(Icons.vpn_key_rounded,
+                                    size: 13, color: AppColors.premiumSoft),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    'Premium via Gemini API Key',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? AppColors.premiumSoft
+                                          : AppColors.premiumDeep,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ]),
+                            ),
+                          ],
+
+                          // Premium IAP usage stats
+                          if (sub.isPremium && _usageStats != null) ...[
+                            const SizedBox(height: AppTokens.sp12),
+                            const Divider(),
+                            const SizedBox(height: AppTokens.sp8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: _usageStats!.dailyProgress,
+                                minHeight: 6,
+                                backgroundColor: isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.grey100,
+                                valueColor: AlwaysStoppedAnimation(
+                                    _usageStats!.isAtDailyLimit
+                                        ? AppColors.danger
+                                        : AppColors.premium),
+                              ),
+                            ),
+                            const SizedBox(height: AppTokens.sp6),
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: [
                                 Text(
-                                  '$_cacheSize ${l.fromCache}',
+                                  '${_usageStats!.callsToday} / '
+                                  '${_usageStats!.limitDaily} '
+                                  '${l.aiCallsToday}',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDark
@@ -477,22 +475,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         : AppColors.grey500,
                                   ),
                                 ),
-                            ],
-                          ),
-                        ],
+                                if (_cacheSize > 0)
+                                  Text(
+                                    '$_cacheSize ${l.fromCache}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isDark
+                                          ? AppColors.darkSubtext
+                                          : AppColors.grey500,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
 
-                        // Free plan hint
-                        if (_plan == AppPlan.free) ...[
-                          const SizedBox(height: AppTokens.sp8),
-                          Text(l.configureApiKeyForAi,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark
+                          // Upgrade CTA for free users
+                          if (!sub.isPremium) ...[
+                            const SizedBox(height: AppTokens.sp12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      AppColors.premiumDeep,
+                                      AppColors.premiumSoft,
+                                    ],
+                                  ),
+                                  borderRadius:
+                                      BorderRadius.circular(AppTokens.radius8),
+                                ),
+                                child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor:     Colors.transparent,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: AppTokens.sp12),
+                                  ),
+                                  onPressed: () =>
+                                      PaywallScreen.show(context),
+                                  icon: const Icon(
+                                      Icons.workspace_premium_rounded,
+                                      size: 16),
+                                  label: Text(l.upgradeToPremium,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppTokens.sp8),
+                            Text(l.configureApiKeyForAi,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? AppColors.darkSubtext
+                                      : AppColors.grey500,
+                                )),
+                          ],
+
+                          // Restore button for premium IAP users
+                          if (sub.isPremiumIap) ...[
+                            const SizedBox(height: AppTokens.sp12),
+                            TextButton.icon(
+                              onPressed: sub.isRestoring
+                                  ? null
+                                  : () {
+                                      final messenger = ScaffoldMessenger.of(context);
+                                      final restoredMsg = l.purchaseRestored;
+                                      sub.restorePurchases().then((_) {
+                                        if (sub.isPremium) {
+                                          messenger.showSnackBar(SnackBar(
+                                            content: Text(restoredMsg),
+                                            backgroundColor: AppColors.success,
+                                          ));
+                                        }
+                                      });
+                                    },
+                              icon: sub.isRestoring
+                                  ? const SizedBox(
+                                      width: 14, height: 14,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : const Icon(Icons.restore_rounded,
+                                      size: 16),
+                              label: Text(l.restorePurchases),
+                              style: TextButton.styleFrom(
+                                foregroundColor: isDark
                                     ? AppColors.darkSubtext
                                     : AppColors.grey500,
-                              )),
+                                textStyle:
+                                    const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),

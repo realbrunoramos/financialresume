@@ -13,6 +13,7 @@ import 'services/database_service.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/language_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'services/notification_service.dart';
 import 'theme/colors.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -71,6 +72,9 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => LanguageProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(
+          create: (_) => SubscriptionProvider()..init(),
+        ),
       ],
       child: Consumer2<LanguageProvider, ThemeProvider>(
         builder: (context, languageProvider, themeProvider, child) {

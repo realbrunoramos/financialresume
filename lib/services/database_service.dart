@@ -27,7 +27,7 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -47,6 +47,9 @@ class DatabaseService {
         }
         if (oldVersion < 14) {
           await _upgradeToVersion14(db);
+        }
+        if (oldVersion < 15) {
+          await _upgradeToVersion15(db);
         }
       },
     );
@@ -138,6 +141,27 @@ class DatabaseService {
         tokens_used INTEGER DEFAULT 0
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        plan_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        is_active INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'iap',
+        expires_at TEXT,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE app_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_name TEXT NOT NULL,
+        properties TEXT,
+        created_at INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _upgradeToVersion12(Database db) async {
@@ -184,6 +208,37 @@ class DatabaseService {
       ''');
     } catch (e) {
       debugPrint('ai_usage table already exists: $e');
+    }
+  }
+
+  Future<void> _upgradeToVersion15(Database db) async {
+    // Version 15: IAP subscription state + analytics event log.
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS subscriptions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          plan_id TEXT NOT NULL,
+          product_id TEXT NOT NULL,
+          is_active INTEGER DEFAULT 0,
+          source TEXT DEFAULT 'iap',
+          expires_at TEXT,
+          updated_at INTEGER NOT NULL
+        )
+      ''');
+    } catch (e) {
+      debugPrint('subscriptions table already exists: $e');
+    }
+    try {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS app_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_name TEXT NOT NULL,
+          properties TEXT,
+          created_at INTEGER NOT NULL
+        )
+      ''');
+    } catch (e) {
+      debugPrint('app_events table already exists: $e');
     }
   }
 
