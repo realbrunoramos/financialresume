@@ -1,484 +1,176 @@
+/// ScanFileScreen — professional document scanner with:
+///   • Live blur / darkness / stability detection via camera stream
+///   • Auto-capture when stable + sharp for 1.5 s
+///   • Animated scanner overlay with quality-driven bracket colours
+///   • Tap-to-focus with visual indicator
+///   • Auto-contrast + noise-reduction + sharpening pipeline
+///   • 7 named filters with real-time thumbnail strip
+///   • Manual 4-corner perspective crop with magnifier
+///   • Multi-page accumulation
+///   • ML Kit OCR → Gemini AI field extraction
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
-import 'package:financialresume/models/transaction.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as imge;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+
 import '../l10n/app_localizations.dart';
+import '../screens/manual_crop_screen.dart';
 import '../services/database_service.dart';
+import '../services/image_pipeline_service.dart';
 import '../services/ocr_parser_service.dart';
 import '../services/secure_storage_service.dart';
-import '../theme/colors.dart';
 import '../theme/app_tokens.dart';
+import '../theme/colors.dart';
 
+// ── Quality thresholds ─────────────────────────────────────────────────────────
+const double _kBlurMin    = 90.0;  // Laplacian variance — below = blurry
+const double _kDarkMax    = 38.0;  // Average Y luma  — below = too dark
+const double _kDiffMax    = 6.0;   // Frame difference — above = moving
+const int    _kStableReq  = 5;     // Consecutive stable frames before auto-capture
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TextBasedDocumentImageProcessor
+// Handles ML Kit OCR + rotation correction + text-boundary crop.
+// The colour filter / enhancement is delegated to ImagePipelineService.
+// ══════════════════════════════════════════════════════════════════════════════
 
 class TextBasedDocumentImageProcessor {
   final File _imageFile;
-  late imge.Image? originalImage;
-  late imge.Image? modifiedImage;
-  imge.Image? finalImage;
-  List<List<int>>? documentCorners;
 
-  final TextRecognizer _textRecognizer = TextRecognizer();
-  RecognizedText? _recognizedText;
-  List<TextBlock> textGroup = [];
+  imge.Image? originalImage;
+  imge.Image? modifiedImage;
 
-  final Map<String, dynamic> _lightAnalysis = {};
+  final TextRecognizer _recognizer = TextRecognizer();
+  RecognizedText?       _ocr;
+  List<TextBlock>       _group = [];
 
   TextBasedDocumentImageProcessor(this._imageFile);
 
+  String get extractedText    => _ocr?.text          ?? '';
+  int    get detectedBlockCount => _ocr?.blocks.length ?? 0;
+
+  // ── Initialise: OCR → rotate → crop ───────────────────────────────────────
+
   Future<void> initialize() async {
+    final bytes = _imageFile.readAsBytesSync();
+    originalImage = imge.decodeImage(bytes);
+    if (originalImage == null) throw Exception('Cannot decode image');
+
+    await _runOcr(_imageFile.path);
+
+    // Rotation correction
+    final angle = _mostFreqAngle();
+    if (angle != null && angle.abs() > 0.5) {
+      modifiedImage = imge.copyRotate(originalImage!, angle: -angle);
+      // Re-run OCR on rotated version
+      final dir     = await getTemporaryDirectory();
+      final rotPath = '${dir.path}/rot_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      File(rotPath).writeAsBytesSync(imge.encodeJpg(modifiedImage!));
+      await _runOcr(rotPath);
+    } else {
+      modifiedImage = originalImage;
+    }
+
+    // Crop to text bounding box
+    final corners = _documentCorners();
+    if (corners != null) {
+      final cropped = _cropToCorners(corners);
+      if (cropped != null) modifiedImage = cropped;
+    }
+  }
+
+  Future<void> _runOcr(String path) async {
     try {
-      final imageBytes = _imageFile.readAsBytesSync();
-      originalImage = imge.decodeImage(imageBytes);
-      if (originalImage == null || originalImage!.width <= 0 || originalImage!.height <= 0) {
-        throw Exception('Imagem inválida: Não foi possível decodificar ou dimensões inválidas');
-      }
-
-      await _processImage();
-
-      if (_recognizedText == null || _recognizedText!.blocks.isEmpty) {
-        throw Exception('Nenhum documento detectado: Nenhum texto encontrado na imagem');
-      }
-
-      double? angle = await getMostFreqAngle();
-      if (angle == null || angle == 0.0) {
-        modifiedImage = originalImage;
-      } else {
-        modifiedImage = await rotateImage(originalImage!, angle);
-        modifiedImage ??= originalImage;
-      }
-
-      if (angle != null && angle != 0.0) {
-        final tempDir = await getTemporaryDirectory();
-        final tempPath = '${tempDir.path}/rotated_${DateTime.now().millisecondsSinceEpoch}.jpg';
-        File(tempPath).writeAsBytesSync(imge.encodeJpg(modifiedImage!));
-        await _processImage(tempPath);
-        if (_recognizedText == null || _recognizedText!.blocks.isEmpty) {
-          throw Exception('Nenhum texto detectado na imagem rotacionada');
-        }
-        await getMostFreqAngle();
-      }
-
-      documentCorners = await _getDocumentCorners();
-
-      if (documentCorners != null) {
-        final croppedImage = await cropWithCustomCorners(documentCorners!);
-        if (croppedImage != null) {
-          modifiedImage = croppedImage;
-        }
-      }
-
-      final imageToEnhance = modifiedImage ?? originalImage!;
-      // Run the heavy pixel loop in a background isolate to keep the UI
-      // thread free during document processing.
-      finalImage = await compute(_applyColorFilterIsolate, imageToEnhance);
-
-    } catch (e) {
-      rethrow;
+      final input = InputImage.fromFilePath(path);
+      _ocr = await _recognizer.processImage(input);
+      _group = _selectGroup();
+    } catch (_) {
+      _ocr   = null;
+      _group = [];
     }
   }
 
-  imge.Image applyManualFilter(imge.Image image, int filterChoice) {
-    imge.Image filteredImage = imge.copyResize(image, width: image.width, height: image.height);
-
-    switch (filterChoice) {
-      case 0: // Very Dark Enhancement
-        return imge.adjustColor(
-          filteredImage,
-          gamma: 0.6,
-          contrast: 1.9,
-          brightness: 1.5,
-          saturation: 0.7,
-        );
-
-      case 1: // Dark Enhancement
-        return imge.adjustColor(
-          filteredImage,
-          gamma: 0.7,
-          contrast: 1.7,
-          brightness: 1.3,
-          saturation: 0.8,
-        );
-
-      case 2: // Normal Enhancement
-        return applyColorFilter(filteredImage);
-
-      case 3: // Bright Enhancement
-        return imge.adjustColor(
-          filteredImage,
-          gamma: 0.9,
-          contrast: 1.2,
-          brightness: 0.9,
-          saturation: 1.0,
-        );
-
-      case 4: // Very Bright Enhancement
-        return imge.adjustColor(
-          filteredImage,
-          gamma: 1.0,
-          contrast: 1.1,
-          brightness: 0.8,
-          saturation: 1.0,
-        );
-      default:
-        return filteredImage;
+  double? _mostFreqAngle() {
+    if (_ocr == null || _ocr!.blocks.isEmpty) return null;
+    final freq = <double, int>{};
+    for (final b in _ocr!.blocks) {
+      if (b.cornerPoints.length < 2) continue;
+      final p1 = b.cornerPoints[0], p2 = b.cornerPoints[1];
+      double a = math.atan2((p2.y - p1.y).toDouble(), (p2.x - p1.x).toDouble()) * 180 / math.pi;
+      if (a > 90) a -= 180;
+      if (a < -90) a += 180;
+      a = (a * 10).round() / 10.0;
+      freq[a] = (freq[a] ?? 0) + 1;
     }
+    if (freq.isEmpty) return null;
+    return freq.entries.reduce((a, b) => a.value > b.value ? a : b).key;
   }
 
-  Future<File?> getProcessedImageWithFilter(int filterChoice) async {
-    try {
-      final imageToProcess = modifiedImage ?? originalImage;
-      if (imageToProcess == null) return null;
-
-      // Filter 2 uses the heavy per-pixel loop — run in background isolate.
-      // All other filters use imge.adjustColor which is fast enough on-thread.
-      final imge.Image filteredImage = filterChoice == 2
-          ? await compute(_applyColorFilterIsolate, imageToProcess)
-          : applyManualFilter(imageToProcess, filterChoice);
-
-      final tempDir = await getTemporaryDirectory();
-      final filteredPath =
-          '${tempDir.path}/filtered_${filterChoice}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      File(filteredPath).writeAsBytesSync(imge.encodeJpg(filteredImage));
-
-      return File(filteredPath);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  imge.Image applyColorFilter(imge.Image image) {
-    final width = image.width;
-    final height = image.height;
-    final th = 0.35;
-    final th2 = 0.29;
-    final th3 = 0.32;
-    imge.Image filteredImage = imge.copyResize(image, width: width, height: height);
-
-    for (int y = 0; y < height; y++) {
-      for (int x = 0; x < width; x++) {
-        final pixel = filteredImage.getPixel(x, y);
-        final gray = (pixel.r + pixel.g + pixel.b).toInt()/3;
-        if(gray > 150){
-          final newR = (pixel.r + pixel.r * th).clamp(0, 255).toInt();
-          final newG = (pixel.g + pixel.g * th).clamp(0, 255).toInt();
-          final newB = (pixel.b + pixel.b * th).clamp(0, 255).toInt();
-          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
-        } else if(gray > 90 && gray < 150) {
-          final newR = (pixel.r + pixel.r * th2).clamp(0, 255).toInt();
-          final newG = (pixel.g + pixel.g * th2).clamp(0, 255).toInt();
-          final newB = (pixel.b + pixel.b * th2).clamp(0, 255).toInt();
-          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
-        } else {
-          final newR = (pixel.r - pixel.r * th3).clamp(0, 255).toInt();
-          final newG = (pixel.g - pixel.g * th3).clamp(0, 255).toInt();
-          final newB = (pixel.b - pixel.b * th3).clamp(0, 255).toInt();
-          filteredImage.setPixel(x, y, imge.ColorRgb8(newR, newG, newB));
-        }
-      }
-    }
-    return filteredImage;
-  }
-
-  Future<void> _processImage([String? imagePath]) async {
-    try {
-      final path = imagePath ?? _imageFile.path;
-      final inputImage = InputImage.fromFilePath(path);
-      _recognizedText = await _textRecognizer.processImage(inputImage);
-    } catch (e) {
-      _recognizedText = null;
-    }
-  }
-
-  Future<double?> getMostFreqAngle() async {
-    if (_recognizedText == null || _recognizedText!.blocks.isEmpty) {
-      return null;
-    }
-
-    Map<double, int> angleFrequency = {};
-    Map<double, List<TextBlock>> angleBlocks = {};
-
-    for (TextBlock block in _recognizedText!.blocks) {
-      if (block.cornerPoints.length >= 2) {
-        final p1 = block.cornerPoints[0];
-        final p2 = block.cornerPoints[1];
-        double dx = (p2.x - p1.x).toDouble();
-        double dy = (p2.y - p1.y).toDouble();
-        double angle = math.atan2(dy, dx) * 180 / math.pi;
-
-        if (angle > 90) angle -= 180;
-        if (angle < -90) angle += 180;
-
-        angle = (angle * 10).round() / 10.0;
-
-        angleFrequency[angle] = (angleFrequency[angle] ?? 0) + 1;
-        angleBlocks[angle] ??= [];
-        angleBlocks[angle]!.add(block);
-      }
-    }
-
-    if (angleFrequency.isEmpty) {
-      return null;
-    }
-
-    double mostFreqAngle = angleFrequency.entries
-        .reduce((a, b) => a.value > b.value ? a : b)
-        .key;
-
-    const angleTolerance = 5.0;
-    textGroup = _recognizedText!.blocks.where((block) {
-      if (block.cornerPoints.length < 2) return false;
-      final p1 = block.cornerPoints[0];
-      final p2 = block.cornerPoints[1];
-      double dx = (p2.x - p1.x).toDouble();
-      double dy = (p2.y - p1.y).toDouble();
-      double angle = math.atan2(dy, dx) * 180 / math.pi;
-
-      if (angle > 90) angle -= 180;
-      if (angle < -90) angle += 180;
-      angle = (angle * 10).round() / 10.0;
-
-      return (angle - mostFreqAngle).abs() <= angleTolerance;
+  List<TextBlock> _selectGroup() {
+    if (_ocr == null) return [];
+    const tol = 5.0;
+    final angle = _mostFreqAngle() ?? 0;
+    return _ocr!.blocks.where((b) {
+      if (b.cornerPoints.length < 2) return false;
+      final p1 = b.cornerPoints[0], p2 = b.cornerPoints[1];
+      double a = math.atan2((p2.y - p1.y).toDouble(), (p2.x - p1.x).toDouble()) * 180 / math.pi;
+      if (a > 90)  a -= 180;
+      if (a < -90) a += 180;
+      return ((a * 10).round() / 10.0 - angle).abs() <= tol;
     }).toList();
-
-    return mostFreqAngle;
   }
 
-  Future<imge.Image?> rotateImage(imge.Image originalImg, double angleDegrees) async {
-    try {
-      final rotated = imge.copyRotate(originalImg, angle: -angleDegrees);
-      if (rotated.width <= 0 || rotated.height <= 0) {
-        return null;
-      }
-      return rotated;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<List<List<int>>?> _getDocumentCorners() async {
-    if (textGroup.isEmpty) {
-      return null;
-    }
-
-    int minX = textGroup[0].cornerPoints[0].x;
-    int maxX = minX;
-    int minY = textGroup[0].cornerPoints[0].y;
-    int maxY = minY;
-
-    for (var block in textGroup) {
-      for (var point in block.cornerPoints) {
-        minX = math.min(minX, point.x);
-        maxX = math.max(maxX, point.x);
-        minY = math.min(minY, point.y);
-        maxY = math.max(maxY, point.y);
+  List<List<int>>? _documentCorners() {
+    if (_group.isEmpty || modifiedImage == null) return null;
+    int minX = _group[0].cornerPoints[0].x;
+    int maxX = minX, minY = _group[0].cornerPoints[0].y, maxY = minY;
+    for (final b in _group) {
+      for (final p in b.cornerPoints) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
       }
     }
-
-    const margin = 20;
-    minX = math.max(0, minX - margin);
-    maxX = math.min(modifiedImage!.width, maxX + margin);
-    minY = math.max(0, minY - margin);
-    maxY = math.min(modifiedImage!.height, maxY + margin);
-
+    const m = 20;
     return [
-      [minX, minY],
-      [maxX, minY],
-      [maxX, maxY],
-      [minX, maxY],
+      [_max(0, minX - m), _max(0, minY - m)],
+      [_min(modifiedImage!.width,  maxX + m), _max(0, minY - m)],
+      [_min(modifiedImage!.width,  maxX + m), _min(modifiedImage!.height, maxY + m)],
+      [_max(0, minX - m), _min(modifiedImage!.height, maxY + m)],
     ];
   }
 
-  Future<List<int>?> _getMinMaxCoordinates(List<List<int>> customCorners) async{
-    if (customCorners.length != 4) {
-      return null;
-    }
-    if (modifiedImage == null) {
-      return null;
-    }
-
-    final imageWidth = modifiedImage!.width;
-    final imageHeight = modifiedImage!.height;
-
-    for (var corner in customCorners) {
-      if (corner.length != 2) {
-        return null;
-      }
-      final x = corner[0];
-      final y = corner[1];
-      if (x < 0 || x >= imageWidth || y < 0 || y >= imageHeight) {
-        return null;
-      }
-    }
-
-    final minX = customCorners.map((c) => c[0]).reduce(math.min);
-    final maxX = customCorners.map((c) => c[0]).reduce(math.max);
-    final minY = customCorners.map((c) => c[1]).reduce(math.min);
-    final maxY = customCorners.map((c) => c[1]).reduce(math.max);
-
-    return [minX, maxX, minY, maxY];
+  imge.Image? _cropToCorners(List<List<int>> corners) {
+    if (modifiedImage == null) return null;
+    final xs = corners.map((c) => c[0]);
+    final ys = corners.map((c) => c[1]);
+    final x  = xs.reduce(_min), w = xs.reduce(_max) - x;
+    final y  = ys.reduce(_min), h = ys.reduce(_max) - y;
+    if (w <= 0 || h <= 0) return null;
+    return imge.copyCrop(modifiedImage!, x: x, y: y, width: w, height: h);
   }
 
-  Future<List<int>?> getPreviewMinMax(InputImage inputImage) async {
-    try {
-      _recognizedText = await _textRecognizer.processImage(inputImage);
-      if (_recognizedText == null || _recognizedText!.blocks.isEmpty) {
-        return null;
-      }
-
-      if (textGroup.isEmpty) {
-        return null;
-      }
-
-      final imageSize = inputImage.metadata!.size;
-      int minX = textGroup[0].cornerPoints[0].x;
-      int maxX = minX;
-      int minY = textGroup[0].cornerPoints[0].y;
-      int maxY = minY;
-
-      for (var block in textGroup) {
-        for (var point in block.cornerPoints) {
-          minX = math.min(minX, point.x);
-          maxX = math.max(maxX, point.x);
-          minY = math.min(minY, point.y);
-          maxY = math.max(maxY, point.y);
-        }
-      }
-
-      const margin = 20;
-      minX = math.max(0, minX - margin);
-      maxX = math.min(imageSize.width.toInt(), maxX + margin);
-      minY = math.max(0, minY - margin);
-      maxY = math.min(imageSize.height.toInt(), maxY + margin);
-
-      return [minX, maxX, minY, maxY];
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<imge.Image?> cropWithCustomCorners(List<List<int>> customCorners) async {
-    try {
-      List<int>? coordinates = await _getMinMaxCoordinates(customCorners);
-
-      int minX = 0;
-      int maxX = 0;
-      int minY = 0;
-      int maxY = 0;
-      if (coordinates == null) {
-        return null;
-      } else {
-        minX = coordinates[0];
-        maxX = coordinates[1];
-        minY = coordinates[2];
-        maxY = coordinates[3];
-      }
-      final cropWidth = maxX - minX;
-      final cropHeight = maxY - minY;
-
-      if (cropWidth <= 0 || cropHeight <= 0) {
-        return null;
-      }
-
-      final croppedImage = imge.copyCrop(
-        modifiedImage!,
-        x: minX,
-        y: minY,
-        width: cropWidth,
-        height: cropHeight,
-      );
-
-      if (croppedImage.width <= 0 || croppedImage.height <= 0) {
-        return null;
-      }
-
-      final tempDir = await getTemporaryDirectory();
-      final debugPath = '${tempDir.path}/debug_crop_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      File(debugPath).writeAsBytesSync(imge.encodeJpg(croppedImage));
-
-      return croppedImage;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<imge.Image?> cropWithCorners(List<List<double>> corners) async {
-    try {
-      if (corners.length != 4) {
-        return null;
-      }
-      if (originalImage == null) {
-        return null;
-      }
-
-      final intCorners = corners.map((c) => [c[0].round(), c[1].round()]).toList();
-      return await cropWithCustomCorners(intCorners.cast<List<int>>());
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Map<String, dynamic> get lightAnalysis => _lightAnalysis;
-
-  /// Full OCR text — exposed for the ML Kit fallback parser.
-  String get extractedText => _recognizedText?.text ?? '';
-
-  /// Number of detected text blocks — drives the quality confidence badge.
-  int get detectedBlockCount => _recognizedText?.blocks.length ?? 0;
-
-  Future<void> dispose() async {
-    await _textRecognizer.close();
-  }
+  Future<void> dispose() => _recognizer.close();
 }
 
-// ─── Isolate helper ───────────────────────────────────────────────────────────
-// Must be a top-level function so Flutter's compute() can send it to a
-// background isolate. Runs the heavy per-pixel colour-filter loop off the
-// UI thread, eliminating the 5–15 s freeze on high-resolution images.
-imge.Image _applyColorFilterIsolate(imge.Image image) {
-  const th  = 0.35;
-  const th2 = 0.29;
-  const th3 = 0.32;
-  final width  = image.width;
-  final height = image.height;
-  final out = imge.copyResize(image, width: width, height: height);
+// File-scoped math helpers
+int _min(int a, int b) => a < b ? a : b;
+int _max(int a, int b) => a > b ? a : b;
 
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      final pixel = out.getPixel(x, y);
-      final gray  = (pixel.r + pixel.g + pixel.b).toInt() ~/ 3;
-      if (gray > 150) {
-        out.setPixel(x, y, imge.ColorRgb8(
-          (pixel.r + pixel.r * th).clamp(0, 255).toInt(),
-          (pixel.g + pixel.g * th).clamp(0, 255).toInt(),
-          (pixel.b + pixel.b * th).clamp(0, 255).toInt(),
-        ));
-      } else if (gray > 90) {
-        out.setPixel(x, y, imge.ColorRgb8(
-          (pixel.r + pixel.r * th2).clamp(0, 255).toInt(),
-          (pixel.g + pixel.g * th2).clamp(0, 255).toInt(),
-          (pixel.b + pixel.b * th2).clamp(0, 255).toInt(),
-        ));
-      } else {
-        out.setPixel(x, y, imge.ColorRgb8(
-          (pixel.r - pixel.r * th3).clamp(0, 255).toInt(),
-          (pixel.g - pixel.g * th3).clamp(0, 255).toInt(),
-          (pixel.b - pixel.b * th3).clamp(0, 255).toInt(),
-        ));
-      }
-    }
-  }
-  return out;
-}
-// ─────────────────────────────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ScanFileScreen
+// ══════════════════════════════════════════════════════════════════════════════
 
 class ScanFileScreen extends StatefulWidget {
   final String sectionId;
@@ -490,356 +182,362 @@ class ScanFileScreen extends StatefulWidget {
 
 class _ScanFileScreenState extends State<ScanFileScreen>
     with SingleTickerProviderStateMixin {
-  final DatabaseService dbService = DatabaseService();
-  CameraController? _controller;
-  List<CameraDescription>? _cameras;
-  Future<void>? _initializeControllerFuture;
-  XFile? _capturedImage;
-  String? _processedImagePath;
-  bool _isProcessing = false;
+  // ── Camera ─────────────────────────────────────────────────────────────────
+  CameraController?  _ctrl;
+  Future<void>?      _initFuture;
+
+  // ── Live quality (viewfinder only) ─────────────────────────────────────────
+  // ignore: unused_field
+  double _blurScore   = 0;
+  // ignore: unused_field
+  double _avgLum      = 0;
+  bool   _isBlurry    = false;
+  bool   _isDark      = false;
+  int    _stableFrames = 0;
+  bool   _autoCapture = true;
+  Uint8List? _prevY;
+  bool   _analyzing   = false;
+  int    _frameSkip   = 0;
+
+  // Tap-to-focus
+  Offset? _tapFocusPoint;
+
+  // ── Capture & processing ───────────────────────────────────────────────────
+  XFile?  _captured;
+  String? _processedPath;  // Final displayed path
+  String? _basePath;       // After OCR crop — before colour filter; used for filter switching
+  bool    _isProcessing   = false;
+  bool    _showScanLine   = false;
+
   TextBasedDocumentImageProcessor? _processor;
+
+  // ── Filters ────────────────────────────────────────────────────────────────
+  int               _selectedFilter   = 0;
+  List<Uint8List>   _filterThumbs     = [];
+
+  // ── ML Kit / AI ───────────────────────────────────────────────────────────
+  String  _mlKitText        = '';
+  int     _mlKitBlockCount  = 0;
+  int     _mlKitConfidence  = 0;
   Map<String, dynamic>? _aiAnalysis;
-  bool _isAnalyzingAI = false;
-  final ImagePicker _picker = ImagePicker();
-  bool _showScanAnimation = false;
-  late AnimationController _scanCtrl;
-  int _selectedFilter = 2;
-  bool _showFilterOptions = false;
+  bool    _isAnalyzingAI    = false;
 
-  List<String> _filterOptions = [];
-  final List<String> _allScannedImages = [];
-  Map<String, dynamic>? _primaryAiAnalysis;
+  // ── Multi-page ─────────────────────────────────────────────────────────────
+  final List<String>      _pages        = [];
+  Map<String, dynamic>?   _primaryAI;
 
-  // ── ML Kit free-tier data (saved before processor disposal) ───────────────
-  String _mlKitText        = '';
-  int    _mlKitBlockCount  = 0;
-  int    _mlKitConfidence  = 0; // 0-5 extracted fields
+  // ── Animation ──────────────────────────────────────────────────────────────
+  late AnimationController _bracketCtrl;
+
+  // ── Services ───────────────────────────────────────────────────────────────
+  final DatabaseService _db      = DatabaseService();
+  final ImagePicker     _picker  = ImagePicker();
+
+  // ── Filter metadata ────────────────────────────────────────────────────────
+  static const _filterIcons = [
+    Icons.article_rounded,
+    Icons.auto_fix_high_rounded,
+    Icons.brightness_low_rounded,
+    Icons.brightness_high_rounded,
+    Icons.filter_b_and_w_rounded,
+    Icons.auto_awesome_rounded,
+    Icons.photo_outlined,
+  ];
+
+  List<String> _filterNames(AppLocalizations l) => [
+    l.filterDocument, l.filterSharp, l.dark,
+    l.light, l.filterBW, l.filterNatural, l.original,
+  ];
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   @override
   void initState() {
     super.initState();
-    _filterOptions = ['0', '1', '2', '3', '4', 'Original'];
+    _bracketCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 900))
+      ..repeat(reverse: true);
     _initCamera();
-
-    // Vsync-aware animation replaces the raw Timer.periodic that previously
-    // called MediaQuery.of(context) from a timer callback (stale-context risk)
-    // and fired at 60 Hz regardless of vsync.
-    _scanCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..repeat();
   }
 
-  Future<void> _applyManualFilter(int filterIndex) async {
-    if (_processor == null) return;
-
-    setState(() {
-      _selectedFilter = filterIndex;
-      _isProcessing = true;
-    });
-
-    try {
-      final filteredFile = await _processor!.getProcessedImageWithFilter(filterIndex);
-      if (filteredFile != null && mounted) {
-        setState(() {
-          _processedImagePath = filteredFile.path;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorApplyingFilter}$e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
+  @override
+  void dispose() {
+    _bracketCtrl.dispose();
+    _ctrl?.stopImageStream().catchError((_) {});
+    _ctrl?.dispose();
+    _processor?.dispose();
+    super.dispose();
   }
 
-  void _toggleFilterOptions() {
-    setState(() {
-      _showFilterOptions = !_showFilterOptions;
-    });
-  }
-
-  Widget _buildFilterSelector() {
-    if (!_showFilterOptions || _processedImagePath == null) {
-      return SizedBox.shrink();
-    }
-
-    return Positioned(
-      top: 100,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.black.withAlpha(100),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          children: [
-            Text(
-              AppLocalizations.of(context).selectFilter,
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
-              children: List.generate(_filterOptions.length, (index) {
-                return _buildFilterButton(index);
-              }),
-            ),
-            SizedBox(height: 8),
-            TextButton(
-              onPressed: _toggleFilterOptions,
-              child: Text(
-                AppLocalizations.of(context).close,
-                style: TextStyle(color: AppColors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterButton(int filterIndex) {
-    final bool isSelected = _selectedFilter == filterIndex;
-
-    Color buttonColor;
-    switch (filterIndex) {
-      case 0: buttonColor = Colors.black; break; // Muito Escuro
-      case 1: buttonColor = Colors.grey[700]!; break; // Escuro
-      case 2: buttonColor = Colors.grey[400]!; break; // Normal
-      case 3: buttonColor = Colors.grey[100]!; break; // Claro
-      case 4: buttonColor = Colors.white; break; // Muito Claro
-      case 5: buttonColor = AppColors.green; break; // Original
-      default: buttonColor = AppColors.grey;
-    }
-
-    return GestureDetector(
-      onTap: () => _applyManualFilter(filterIndex),
-      child: Column(
-        children: [
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: buttonColor,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected? (filterIndex >= 3 ? Colors.grey : Colors.white) : Colors.transparent,
-                width: 3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(190),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                filterIndex == 5 ? 'O' : filterIndex.toString(),
-                style: TextStyle(
-                  color: filterIndex >= 3 ? Colors.black : Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: filterIndex == 5 ? 25 : 15,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterToggleButton() {
-    if (_processedImagePath == null) return SizedBox.shrink();
-
-    return Positioned(
-      top: 50,
-      right: 20,
-      child: FloatingActionButton(
-        onPressed: _toggleFilterOptions,
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.dark,
-        mini: true,
-        child: Icon(
-          _showFilterOptions ? Icons.close : Icons.filter_alt,
-          size: 20,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCurrentFilterIndicator() {
-    if (_processedImagePath == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Positioned(
-      top: 50,
-      left: 20,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.black.withAlpha(222),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          '${AppLocalizations.of(context).filterLabel} ${_filterOptions[_selectedFilter]}',
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Confidence badge — shows how many fields ML Kit could extract (0–5).
-  /// Positioned at bottom-left of the processed image overlay.
-  Widget _buildConfidenceBadge() {
-    if (_processedImagePath == null || _mlKitBlockCount == 0) {
-      return const SizedBox.shrink();
-    }
-
-    // Map confidence (0-5 fields) to a colour.
-    final Color badgeColor;
-    final String label;
-    if (_mlKitConfidence >= 4) {
-      badgeColor = AppColors.success;
-      label = '●●●';
-    } else if (_mlKitConfidence >= 2) {
-      badgeColor = AppColors.warning;
-      label = '●●○';
-    } else {
-      badgeColor = AppColors.danger;
-      label = '●○○';
-    }
-
-    return Positioned(
-      bottom: 90,
-      left: 20,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: Colors.black.withAlpha(200),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: badgeColor.withAlpha(160), width: 1),
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text(label,
-              style: TextStyle(
-                  color: badgeColor, fontSize: 10, letterSpacing: 2)),
-          const SizedBox(width: 6),
-          Text(
-            'OCR $_mlKitBlockCount',
-            style: const TextStyle(
-                color: AppColors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600),
-          ),
-        ]),
-      ),
-    );
-  }
+  // ── Camera initialisation ──────────────────────────────────────────────────
 
   Future<void> _initCamera() async {
     try {
-      _cameras = await availableCameras();
-      _controller = CameraController(
-        _cameras!.first,
-        ResolutionPreset.high,
-      );
-      _initializeControllerFuture = _controller!.initialize();
-      if (mounted) {
+      final cams = await availableCameras();
+      if (cams.isEmpty) return;
+      _ctrl = CameraController(cams.first, ResolutionPreset.veryHigh,
+          enableAudio: false);
+      _initFuture = _ctrl!.initialize().then((_) {
+        if (!mounted) return;
+        _ctrl!.startImageStream(_onFrame);
         setState(() {});
-      }
+      });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorInitializingCamera} $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                '${AppLocalizations.of(context).errorInitializingCamera} $e')));
       }
     }
   }
 
-  Future<void> _takePicture() async {
+  // ── Live frame analysis ────────────────────────────────────────────────────
 
-    if (_controller == null || !_controller!.value.isInitialized) return;
+  void _onFrame(CameraImage frame) {
+    if (++_frameSkip % 10 != 0) return; // ~3 fps at 30 fps
+    if (_analyzing || _captured != null) return;
+    _analyzing = true;
+    _processFrame(frame).whenComplete(() => _analyzing = false);
+  }
 
+  Future<void> _processFrame(CameraImage frame) async {
     try {
-      await _initializeControllerFuture;
-      final image = await _controller!.takePicture();
+      final Uint8List? yPlane = _extractY(frame);
+      if (yPlane == null) return;
+
+      final result = await ImagePipelineService.analyzeFrame(
+          yPlane, frame.width, frame.height, _prevY);
+
+      _prevY = Uint8List.fromList(yPlane);
+
+      if (!mounted) return;
+      final blur  = (result['blur'] as num).toDouble();
+      final lum   = (result['lum']  as num).toDouble();
+      final diff  = (result['diff'] as num).toDouble();
+      final blurry  = blur < _kBlurMin;
+      final dark    = lum  < _kDarkMax;
+      final stable  = _prevY != null && diff < _kDiffMax;
+
       setState(() {
-        _capturedImage = image;
+        _blurScore = blur;
+        _avgLum    = lum;
+        _isBlurry  = blurry;
+        _isDark    = dark;
       });
-      await _processCapturedImage(_capturedImage!);
+
+      _updateAutoCapture(blurry, dark, stable);
+    } catch (_) {}
+  }
+
+  Uint8List? _extractY(CameraImage frame) {
+    final fmt = frame.format.group;
+    if (fmt == ImageFormatGroup.yuv420) {
+      return frame.planes[0].bytes;
+    }
+    if (fmt == ImageFormatGroup.bgra8888) {
+      final raw = frame.planes[0].bytes;
+      final y   = Uint8List(frame.width * frame.height);
+      for (int i = 0, j = 0; i < raw.length - 3; i += 4, j++) {
+        if (j >= y.length) break;
+        y[j] = ((raw[i + 2] * 299 + raw[i + 1] * 587 + raw[i] * 114) ~/ 1000)
+            .clamp(0, 255);
+      }
+      return y;
+    }
+    return null;
+  }
+
+  void _updateAutoCapture(bool blurry, bool dark, bool stable) {
+    if (!_autoCapture || _captured != null) {
+      if (_stableFrames != 0) setState(() => _stableFrames = 0);
+      return;
+    }
+    if (!blurry && !dark && stable) {
+      setState(() => _stableFrames++);
+      if (_stableFrames >= _kStableReq) {
+        setState(() => _stableFrames = 0);
+        _takePicture();
+      }
+    } else {
+      if (_stableFrames != 0) setState(() => _stableFrames = 0);
+    }
+  }
+
+  // ── Tap to focus ───────────────────────────────────────────────────────────
+
+  Future<void> _onTapFocus(TapUpDetails d, BoxConstraints box) async {
+    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
+    try {
+      final x = d.localPosition.dx / box.maxWidth;
+      final y = d.localPosition.dy / box.maxHeight;
+      await _ctrl!.setFocusPoint(Offset(x, y));
+      await _ctrl!.setExposurePoint(Offset(x, y));
+      if (mounted) {
+        setState(() => _tapFocusPoint = d.localPosition);
+        Future.delayed(const Duration(seconds: 2),
+            () { if (mounted) setState(() => _tapFocusPoint = null); });
+      }
+    } catch (_) {}
+  }
+
+  // ── Capture ────────────────────────────────────────────────────────────────
+
+  Future<void> _takePicture() async {
+    if (_ctrl == null || !_ctrl!.value.isInitialized || _captured != null) return;
+    try {
+      await _ctrl!.stopImageStream();
+      final img = await _ctrl!.takePicture();
+      setState(() => _captured = img);
+      await _processCapture(img);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorCapturingImage} $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('${AppLocalizations.of(context).errorCapturingImage} $e')));
       }
     }
   }
 
   Future<void> _pickFromGallery() async {
     try {
-      final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-      if (pickedFile != null) {
-        setState(() {
-          _capturedImage = pickedFile;
-        });
-        await _processCapturedImage(_capturedImage!);
-      }
+      final f = await _picker.pickImage(source: ImageSource.gallery);
+      if (f == null) return;
+      try { await _ctrl?.stopImageStream(); } catch (_) {}
+      setState(() => _captured = f);
+      await _processCapture(f);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorSelectingImage} $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('${AppLocalizations.of(context).errorSelectingImage} $e')));
       }
     }
   }
+
+  // ── Image processing pipeline ──────────────────────────────────────────────
+
+  Future<void> _processCapture(XFile xf) async {
+    setState(() { _isProcessing = true; _showScanLine = true; _selectedFilter = 0; });
+
+    try {
+      final src = File(xf.path);
+
+      // 1. OCR-based rotation + crop
+      _processor = TextBasedDocumentImageProcessor(src);
+      try {
+        await _processor!.initialize();
+      } catch (_) {
+        // If OCR fails, use original
+      }
+
+      // 2. Save the OCR-cropped intermediate (base for filter switching)
+      final dir  = await getTemporaryDirectory();
+      final base = File('${dir.path}/base_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+      if (_processor?.modifiedImage != null) {
+        base.writeAsBytesSync(
+            imge.encodeJpg(_processor!.modifiedImage!, quality: 95));
+      } else {
+        await src.copy(base.path);
+      }
+      _basePath = base.path;
+
+      // 3. ML Kit data (before disposal)
+      _mlKitText       = _processor?.extractedText     ?? '';
+      _mlKitBlockCount = _processor?.detectedBlockCount ?? 0;
+      final parsed     = OcrParserService.parse(_mlKitText);
+      _mlKitConfidence = parsed.confidence;
+
+      // 4. Full enhancement pipeline (Document filter = 0)
+      final result = await ImagePipelineService.processDocument(base);
+      if (result != null && mounted) {
+        setState(() => _processedPath = result.file.path);
+      } else if (mounted) {
+        // Fallback: use base path directly
+        setState(() => _processedPath = base.path);
+      }
+
+      // 5. Generate filter thumbnails in background (non-blocking)
+      _generateThumbs(base);
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content:
+                Text('${AppLocalizations.of(context).errorProcessing} $e')));
+      }
+    } finally {
+      _processor?.dispose();
+      if (mounted) setState(() { _isProcessing = false; _showScanLine = false; });
+    }
+  }
+
+  Future<void> _generateThumbs(File base) async {
+    try {
+      final thumbs = await ImagePipelineService.generateThumbnails(base);
+      if (mounted) setState(() => _filterThumbs = thumbs);
+    } catch (_) {}
+  }
+
+  // ── Filter application ─────────────────────────────────────────────────────
+
+  Future<void> _applyFilter(int filterIdx) async {
+    if (_basePath == null) return;
+    setState(() { _selectedFilter = filterIdx; _isProcessing = true; });
+    try {
+      final out = await ImagePipelineService.applyFilter(
+          File(_basePath!), filterIdx);
+      if (out != null && mounted) setState(() => _processedPath = out.path);
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  // ── Manual crop ────────────────────────────────────────────────────────────
+
+  Future<void> _openManualCrop() async {
+    if (_basePath == null) return;
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => ManualCropScreen(imageFile: File(_basePath!))),
+    );
+    if (result == null || !mounted) return;
+
+    // Use warped image as the new base + apply current filter
+    setState(() { _basePath = result; _processedPath = result; _isProcessing = true; });
+    try {
+      final out = await ImagePipelineService.applyFilter(
+          File(result), _selectedFilter);
+      if (out != null && mounted) {
+        setState(() => _processedPath = out.path);
+        _generateThumbs(File(result));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
+  // ── Confirm / multi-page ───────────────────────────────────────────────────
 
   Future<void> _confirm() async {
-    if (_capturedImage == null || _isProcessing || _isAnalyzingAI) return;
+    if (_captured == null || _isProcessing || _isAnalyzingAI) return;
 
-    if (_allScannedImages.isEmpty) {
+    // Run AI on first page only
+    if (_pages.isEmpty) {
       await _analyzeWithAI();
-      if (_aiAnalysis != null) {
-        _primaryAiAnalysis = Map<String, dynamic>.from(_aiAnalysis!);
-      }
+      if (_aiAnalysis != null) _primaryAI = Map.from(_aiAnalysis!);
     }
 
-    if (_processedImagePath != null) {
-      _allScannedImages.add(_processedImagePath!);
-    }
+    if (_processedPath != null) _pages.add(_processedPath!);
 
-    if (mounted) {
-      _showAddMorePagesDialog();
-    }
+    if (mounted) _showAddMoreSheet();
   }
 
-  void _showAddMorePagesDialog() {
+  void _showAddMoreSheet() {
     final l      = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final count  = _allScannedImages.length;
+    final count  = _pages.length;
 
     showModalBottomSheet<void>(
       context: context,
@@ -861,8 +559,7 @@ class _ScanFileScreenState extends State<ScanFileScreen>
                   width: 36, height: 4,
                   decoration: BoxDecoration(
                     color: isDark ? AppColors.darkBorder : AppColors.grey200,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                    borderRadius: BorderRadius.circular(2)),
                 ),
               ),
               const SizedBox(height: AppTokens.sp16),
@@ -871,20 +568,16 @@ class _ScanFileScreenState extends State<ScanFileScreen>
                   padding: const EdgeInsets.all(AppTokens.sp8),
                   decoration: BoxDecoration(
                     color: AppColors.info.withAlpha(24),
-                    borderRadius: BorderRadius.circular(AppTokens.radius8),
-                  ),
+                    borderRadius: BorderRadius.circular(AppTokens.radius8)),
                   child: const Icon(Icons.document_scanner_rounded,
                       color: AppColors.info, size: 20),
                 ),
                 const SizedBox(width: AppTokens.sp12),
                 Expanded(
-                  child: Text(
-                    l.scannedDocument,
+                  child: Text(l.scannedDocument,
                     style: TextStyle(
                       fontSize: 17, fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.darkText : AppColors.dark,
-                    ),
-                  ),
+                      color: isDark ? AppColors.darkText : AppColors.dark)),
                 ),
               ]),
               const SizedBox(height: AppTokens.sp12),
@@ -894,8 +587,7 @@ class _ScanFileScreenState extends State<ScanFileScreen>
                     : '${l.documentWithPagesAddMoreQuestion} $count ${l.documentWithPagesAddMoreQuestion2}',
                 style: TextStyle(
                   fontSize: 14, height: 1.5,
-                  color: isDark ? AppColors.darkSubtext : AppColors.grey500,
-                ),
+                  color: isDark ? AppColors.darkSubtext : AppColors.grey500),
               ),
               const SizedBox(height: AppTokens.sp20),
               Row(children: [
@@ -912,12 +604,10 @@ class _ScanFileScreenState extends State<ScanFileScreen>
                 const SizedBox(width: AppTokens.sp12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _goToTransactionForm();
-                    },
+                    onPressed: () { Navigator.pop(context); _finish(); },
                     icon: const Icon(Icons.check_rounded, size: 18),
-                    label: Text('${l.confirmWithPageCount} ($count ${l.confirmWithPageCount2})'),
+                    label: Text(
+                        '${l.confirmWithPageCount} ($count ${l.confirmWithPageCount2})'),
                   ),
                 ),
               ]),
@@ -928,201 +618,85 @@ class _ScanFileScreenState extends State<ScanFileScreen>
     );
   }
 
-  void _goToTransactionForm() {
+  void _finish() {
     if (mounted) {
       Navigator.pop(context, {
-        'imagePaths': _allScannedImages,
-        'aiAnalysis': _primaryAiAnalysis ?? _aiAnalysis,
+        'imagePaths': _pages,
+        'aiAnalysis': _primaryAI ?? _aiAnalysis,
       });
     }
   }
 
   Future<void> _retryCapture() async {
     setState(() {
-      _capturedImage = null;
-      _processedImagePath = null;
-      _selectedFilter = 2;
-      _showFilterOptions = false;
+      _captured       = null;
+      _processedPath  = null;
+      _basePath       = null;
+      _selectedFilter = 0;
+      _filterThumbs   = [];
+      _showScanLine   = false;
     });
+    // Restart stream
+    try { await _ctrl?.startImageStream(_onFrame); } catch (_) {}
   }
 
-  Future<void> _processCapturedImage(XFile imageFile) async {
-    setState(() {
-      _isProcessing = true;
-      _showScanAnimation = true;
-      _selectedFilter = 2;
-    });
-
-    try {
-      final imagePath = imageFile.path;
-      final imageFileObj = File(imagePath);
-      _processor = TextBasedDocumentImageProcessor(imageFileObj);
-      await _processor!.initialize();
-
-      if (_processor!.finalImage != null) {
-        final tempDir = await getTemporaryDirectory();
-        final processedPath = '${tempDir.path}/processed_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-        File(processedPath).writeAsBytesSync(imge.encodeJpg(_processor!.finalImage!));
-
-        if (mounted) {
-          setState(() {
-            _processedImagePath = processedPath;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${AppLocalizations.of(context).errorProcessing} $e')),
-        );
-      }
-    } finally {
-      // Save ML Kit data BEFORE disposing the processor — used as free-tier
-      // fallback when no Gemini API key is configured.
-      if (_processor != null) {
-        _mlKitText       = _processor!.extractedText;
-        _mlKitBlockCount = _processor!.detectedBlockCount;
-        final parsed     = OcrParserService.parse(_mlKitText);
-        _mlKitConfidence = parsed.confidence;
-      }
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _showScanAnimation = false;
-        });
-      }
-      _processor?.dispose();
-    }
-  }
+  // ── AI analysis ────────────────────────────────────────────────────────────
 
   Future<void> _analyzeWithAI() async {
-    // Capture context-dependent values BEFORE any await
-    final promptLang    = AppLocalizations.of(context).promptLanguage;
-    final errorAiLabel  = AppLocalizations.of(context).errorAiAnalysis;
+    final promptLang   = AppLocalizations.of(context).promptLanguage;
+    final errorLabel   = AppLocalizations.of(context).errorAiAnalysis;
 
-    StringBuffer invoicesString = StringBuffer();
-    List<Transaction> invoices = await dbService.getNoPaidInvoices(widget.sectionId);
-
-    for (var invoice in invoices) {
-      invoicesString.write("id: ${invoice.id} -> entidade: ${invoice.entity}, valor: ${invoice.amount}, refMesAno: ${invoice.monthRef}\n");
+    final invoices = await _db.getNoPaidInvoices(widget.sectionId);
+    final inv = StringBuffer();
+    for (final i in invoices) {
+      inv.write(
+          'id: ${i.id} -> entidade: ${i.entity}, valor: ${i.amount}, refMesAno: ${i.monthRef}\n');
     }
 
-    if (_processedImagePath == null || _isAnalyzingAI) return;
-
-    setState(() {
-      _isAnalyzingAI = true;
-    });
+    if (_processedPath == null || _isAnalyzingAI) return;
+    setState(() => _isAnalyzingAI = true);
 
     try {
       final apiKey = await SecureStorageService.readApiKey();
-
       if (apiKey == null || apiKey.isEmpty) {
-        // No API key → use ML Kit free-tier extraction as fallback.
         final parsed = OcrParserService.parse(_mlKitText);
         if (mounted) {
           setState(() => _aiAnalysis = parsed.fields);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(AppLocalizations.of(context).basicOcrExtraction),
               backgroundColor: AppColors.info,
-              duration: const Duration(seconds: 3),
-            ),
-          );
+              duration: const Duration(seconds: 3)));
         }
         return;
       }
 
-      final imageFile = File(_processedImagePath!);
-      final imageBytes = await imageFile.readAsBytes();
+      final imageBytes  = await File(_processedPath!).readAsBytes();
       final imageBase64 = base64Encode(imageBytes);
+      final url = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
 
-      Uri url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
-
-      final prompt = """Recebeste uma imagem de um documento financeiro (ex.: fatura, recibo, comprovativo de pagamento).
-Deves extrair informações e responder **APENAS** com um objeto JSON de linha única no formato seguinte, sem explicações adicionais e sem texto fora do JSON:
-
-{
-  "tipo_documento": <número do documento da lista abaixo>,
-  "entidade": "string | UNKNOWN",
-  "data_emissao": "dd mm yyyy | UNKNOWN",
-  "valor_total": "string numérica (ex.: '23.45')" | "UNKNOWN",
-  "data_limite": "dd mm yyyy" | "UNKNOWN",
-  "é_crédito": "0" | "1" | "UNKNOWN",
-  "mes_ano_ref": "mm/yyyy" | "UNKNOWN",
-  "descrição": "string | UNKNOWN",
-  "ids_ref_fatura": "string | UNKNOWN",
-  "numero_serie": "string | UNKNOWN",
-  "metodo_pagamento": "string (<entidade>/<referência> em caso de entidade e referência e <IBAN> em caso de IBAN)| UNKNOWN"
-}
-
-### Lista de tipos de documento:
-1 = Comprovativo de Compra (talão ou fatura de loja)
-2 = Fatura ou Nota de Cobrança (emitida por empresa ou prestador de serviços)
-3 = Comprovativo de Pagamento (ex.: multibanco, transferência, recibo de pagamento)
-4 = Outro (não identificado)
-
-### Regras obrigatórias:
-1. O campo "tipo_documento" deve ser **apenas o número** correspondente da lista acima.
-2. "entidade" deve conter o nome da loja, empresa ou instituição identificada no documento (Ao menos que seja mesmo o nome da entidade, não deve conter mais que uma palavra. Sem subtítulos, nem adicionais). Se não for possível determinar, usar "UNKNOWN".
-3. A "data_emissao" deve estar no formato exacto "dd mm yyyy" (com zeros à esquerda). Se não houver data clara, usar "UNKNOWN".
-4. O "valor_total" deve representar o montante total pago ou a pagar, apenas o número (com ponto decimal). Se não identificado, usar "UNKNOWN".
-5. "data_limite" deve ser incluída apenas para tipo 2 (Nota de Cobrança), no formato "dd mm yyyy". Caso contrário, "UNKNOWN".
-6. "numero_serie" deve conter o número de série da faturação (ex: FT 2017/1, A123456, etc.). Se não identificado, usar "UNKNOWN".
-7. No parâmetro "metodo_pagamento" deve conter apenas os números do método de pagamento na seguinte estrutura no JSON em caso de ser por entidade e referência: metodo_pagamento:<nºentidade>/<nºreferência>, e <nºIBAN> em caso de ser IBAN. Se não identificado, usar "UNKNOWN".
-8. Nunca escrever texto adicional, explicações, metadados, arrays, múltiplos objetos ou JSON inválido. Apenas um único objeto JSON válido numa linha.
-9. Se o documento não corresponder a nenhum dos três tipos principais, definir "tipo_documento" como 4 (Outro).
-10. Caso múltiplos documentos sejam visíveis, considera apenas o que ocupa a maior área na imagem.
-11. Em caso de transferência ou Pagamento por Multibanco, o nome da entidade deve ser o nome que está atribuído ao nome do destinatário.
-12. Em caso de comprovativo e nota de cobrança, deve incluir também o mês e o ano da referência que o valor foi atribuído.
-13. O argumento 'é_crédito' tem valor de '0' se não for crédito e '1' se for crédito.
-14. Analisa a imagem de um talão, fatura ou comprovativo de pagamento.
-Identifica o tipo de compra ou o contexto geral da despesa, mas não descrevas produtos individuais, valores ou detalhes específicos.
-O objetivo é produzir uma descrição curta (até 7 palavras), que resuma de forma genérica e natural o tipo de gasto realizado.
-Exemplos:
--Supermercado com alimentos e produtos de higiene → "Compras para a casa";
--Restaurante ou bar → "Refeição fora de casa";
--Comprovativo de transferência de um terceiro → "Transferência de dinheiro de <nome do remetente>";
--Farmácia ou parafarmácia → "Produtos de saúde";
--Talão de supermercado de animais → "Produtos para animais de estimação";
--Recibo de hotel → "Alojamento e estadia";
--Talão de combustível → "Combustível e transporte".
-15. No parâmetro "ids_ref_fatura" deve conter ids de faturas que pareça ser condizente com o comprovativo em questão. Se houver
-alguma fatura que tenha a mesma referência de mês e ano (monthRef/mes_ano_ref), mesmo valor e nome de entidade condizente com o comprovativo, adicione ao parâmetro
-apenas o id dessa fatura. Se as faturas apenas tiverem entidade e/ou valor condizente, adiciona o id dessa(s) fatura(s). 
-Aqui estão as faturas reais para analizar:
-${invoicesString.toString()}
-(Atenção: o output deve ser no idioma: $promptLang)
-
-### Exemplos de saída válida:
-{"tipo_documento":1,"entidade":"Continente","data_emissao":"05 10 2025","valor_total":"23.45","descrição":"Compras para a casa","numero_serie":"UNKNOWN","metodo_pagamento":"UNKNOWN"}
-{"tipo_documento":2,"entidade":"EDP Comercial","data_emissao":"01 09 2025","valor_total":"65.90","descrição":"Fatura de Energia (EDP) de setembro","data_limite":"30 09 2025","mes_ano_ref":"09/2025","numero_serie":"FT 2023/12345","metodo_pagamento":"UNKNOWN"}
-{"tipo_documento":3,"entidade":"CASA PIA","data_emissao":"03 10 2025","valor_total":"25.00","descrição":"Pagamento do serviço casa PIA","mes_ano_ref":"10/2025","é_crédito":"0","ids_ref_fatura":"2025-10-02 12:07:37.790990,2025-10-01 10:07:37.865099","numero_serie":"UNKNOWN","metodo_pagamento":"67890/12345678901"}
-{"tipo_documento":3,"entidade":"Diogo","data_emissao":"07 10 2025","valor_total":"500.00","descrição":"Transferencia de Diogo","mes_ano_ref":"10/2025","é_crédito":"1","ids_ref_fatura":"","numero_serie":"UNKNOWN","metodo_pagamento":"PT50 0002 0123 1234 5678 9015 4"}""";
+      final prompt = _buildGeminiPrompt(promptLang, inv.toString());
 
       http.Response? response;
       for (int attempt = 0; attempt < 3; attempt++) {
         try {
-          response = await http.post(
-            url,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'contents': [
-                {
-                  'parts': [
-                    {'text': prompt},
-                    {
-                      'inlineData': {
-                        'mimeType': 'image/jpeg',
-                        'data': imageBase64,
+          response = await http.post(url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'contents': [
+                  {
+                    'parts': [
+                      {'text': prompt},
+                      {
+                        'inlineData': {
+                          'mimeType': 'image/jpeg',
+                          'data': imageBase64,
+                        }
                       }
-                    }
-                  ]
-                }
-              ]
-            }),
-          ).timeout(const Duration(seconds: 45));
-          // Retry on 429 (rate-limit) with exponential back-off; break on others.
+                    ]
+                  }
+                ]
+              })).timeout(const Duration(seconds: 45));
           if (response.statusCode == 429) {
             await Future.delayed(Duration(seconds: 2 * (attempt + 1)));
             continue;
@@ -1135,329 +709,588 @@ ${invoicesString.toString()}
       }
 
       if (response != null && response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final content = data['candidates'][0]['content']['parts'][0]['text'];
-
-        final jsonMatch = RegExp(r'\{.*\}').firstMatch(content);
-        if (jsonMatch != null) {
-          final aiResult = jsonDecode(jsonMatch.group(0)!);
-          if (mounted) {
-            setState(() {
-              _aiAnalysis = aiResult;
-            });
-          }
+        final data  = jsonDecode(response.body);
+        final text  = data['candidates'][0]['content']['parts'][0]['text'] as String;
+        final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(text);
+        if (match != null) {
+          final ai = jsonDecode(match.group(0)!);
+          if (mounted) setState(() => _aiAnalysis = ai);
         }
       } else {
-        throw Exception(
-            'Falha na API: ${response?.statusCode ?? 'sem resposta'}');
+        throw Exception('API ${response?.statusCode ?? 'no response'}');
       }
     } catch (e) {
-      debugPrint('$errorAiLabel $e');
-      // Gemini failed — fall back to the on-device ML Kit result so the user
-      // still gets pre-filled fields rather than a blank form.
+      debugPrint('$errorLabel $e');
       if (_mlKitText.isNotEmpty) {
         final parsed = OcrParserService.parse(_mlKitText);
         if (mounted) setState(() => _aiAnalysis = parsed.fields);
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorAiLabel),
-            backgroundColor: AppColors.red,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(errorLabel), backgroundColor: AppColors.red));
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isAnalyzingAI = false;
-        });
-      }
+      if (mounted) setState(() => _isAnalyzingAI = false);
     }
   }
 
+  String _buildGeminiPrompt(String lang, String invoices) => """
+Recebeste uma imagem de um documento financeiro (ex.: fatura, recibo, comprovativo de pagamento).
+Deves extrair informações e responder **APENAS** com um objeto JSON de linha única no formato seguinte, sem explicações adicionais e sem texto fora do JSON:
 
-  @override
-  void dispose() {
-    _scanCtrl.dispose();
-    _controller?.dispose();
-    _processor?.dispose();
-    super.dispose();
-  }
+{"tipo_documento":<número>,"entidade":"string|UNKNOWN","data_emissao":"dd mm yyyy|UNKNOWN","valor_total":"string numérica|UNKNOWN","data_limite":"dd mm yyyy|UNKNOWN","é_crédito":"0|1|UNKNOWN","mes_ano_ref":"mm/yyyy|UNKNOWN","descrição":"string|UNKNOWN","ids_ref_fatura":"string|UNKNOWN","numero_serie":"string|UNKNOWN","metodo_pagamento":"string|UNKNOWN"}
+
+Tipos: 1=Compra, 2=Fatura/Cobrança, 3=Comprovativo Pagamento, 4=Outro
+Faturas existentes: $invoices
+(Output em: $lang)""";
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BUILD
+  // ══════════════════════════════════════════════════════════════════════════
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.dark,
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).scan),
-        backgroundColor: AppColors.white,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _controller == null || _initializeControllerFuture == null
-                ? Center(child: CircularProgressIndicator(color: AppColors.white))
-                : FutureBuilder<void>(
-              future: _initializeControllerFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.done) {
-                  if (_processedImagePath != null) {
-                    return Center(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(
-                            File(_processedImagePath!),
-                            fit: BoxFit.contain,
-                          ),
-
-                          if (_showScanAnimation)
-                            AnimatedBuilder(
-                              animation: _scanCtrl,
-                              builder: (context, child) {
-                                final h = MediaQuery.of(context).size.height;
-                                return Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  top: _scanCtrl.value * h * 2,
-                                  child: child!,
-                                );
-                              },
-                              child: Container(
-                                height: 4,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Colors.transparent,
-                                      AppColors.green,
-                                      AppColors.green,
-                                      Colors.transparent,
-                                    ],
-                                    stops: [0.0, 0.3, 0.7, 1.0],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.green.withAlpha(200),
-                                      blurRadius: 10,
-                                      spreadRadius: 3,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          _buildCurrentFilterIndicator(),
-
-                          _buildFilterSelector(),
-
-                          _buildFilterToggleButton(),
-
-                          _buildConfidenceBadge(),
-
-                          Positioned(
-                            bottom: 20,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // Botão Repetir
-                                  Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: TextButton(
-                                      onPressed: _retryCapture,
-                                      style: ButtonStyle(
-                                        backgroundColor: WidgetStateProperty.all(AppColors.white),
-                                        foregroundColor: WidgetStateProperty.all(AppColors.dark),
-                                        fixedSize: WidgetStateProperty.all(Size(50, 50)),
-                                      ),
-                                      child: Icon(Icons.repeat),
-                                    ),
-                                  ),
-                                  // Botão Confirmar
-                                  Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: TextButton(
-                                      onPressed: (_isProcessing || _isAnalyzingAI) ? null : _confirm,
-                                      style: ButtonStyle(
-                                        backgroundColor: WidgetStateProperty.all(
-                                            (_isProcessing || _isAnalyzingAI) ? AppColors.grey : AppColors.green
-                                        ),
-                                        foregroundColor: WidgetStateProperty.all(AppColors.white),
-                                        fixedSize: WidgetStateProperty.all(Size(50, 50)),
-                                      ),
-                                      child: _isAnalyzingAI
-                                          ? SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                                        ),
-                                      )
-                                          : Icon(Icons.check),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else if (_capturedImage != null) {
-                    return Center(
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.file(
-                            File(_capturedImage!.path),
-                            fit: BoxFit.contain,
-                          ),
-
-                          if (_showScanAnimation)
-                            AnimatedBuilder(
-                              animation: _scanCtrl,
-                              builder: (context, child) {
-                                final h = MediaQuery.of(context).size.height;
-                                return Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  top: (_scanCtrl.value * h * 2).clamp(0.0, h),
-                                  child: child!,
-                                );
-                              },
-                              child: Container(
-                                height: 3,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      Colors.transparent,
-                                      AppColors.green.withAlpha(200),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.green.withAlpha(200),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          if (_isProcessing)
-                            Container(
-                              color: Colors.black.withAlpha(200),
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    CircularProgressIndicator(color: AppColors.white),
-                                    SizedBox(height: 16),
-                                    Text(
-                                      AppLocalizations.of(context).processingImage,
-                                      style: TextStyle(color: AppColors.white, fontSize: 16),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                          Positioned(
-                            bottom: 20,
-                            left: 0,
-                            right: 0,
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: TextButton(
-                                      onPressed: _retryCapture,
-                                      style: ButtonStyle(
-                                        backgroundColor: WidgetStateProperty.all(AppColors.white),
-                                        foregroundColor: WidgetStateProperty.all(AppColors.dark),
-                                        fixedSize: WidgetStateProperty.all(Size(50, 50)),
-                                      ),
-                                      child: Icon(Icons.repeat),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: TextButton(
-                                      onPressed: _isProcessing ? null : _confirm,
-                                      style: ButtonStyle(
-                                        backgroundColor: WidgetStateProperty.all(
-                                            _isProcessing ? AppColors.grey : AppColors.green
-                                        ),
-                                        foregroundColor: WidgetStateProperty.all(AppColors.white),
-                                        fixedSize: WidgetStateProperty.all(Size(50, 50)),
-                                      ),
-                                      child: Icon(Icons.check),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    return Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CameraPreview(_controller!),
-
-                        Positioned(
-                          bottom: 20,
-                          left: 0,
-                          right: 0,
-                          child: Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: SizedBox(
-                                width: 80,
-                                height: 80,
-                                child: FloatingActionButton(
-                                  onPressed: _takePicture,
-                                  backgroundColor: AppColors.white,
-                                  foregroundColor: AppColors.dark,
-                                  child: Icon(Icons.camera_alt, size: 30),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        Positioned(
-                          bottom: 20,
-                          right: 20,
-                          child: FloatingActionButton(
-                            onPressed: _pickFromGallery,
-                            backgroundColor: AppColors.white,
-                            foregroundColor: AppColors.dark,
-                            mini: true,
-                            child: Icon(Icons.photo_library, size: 24),
-                          ),
-                        ),
-                      ],
-                    );
-                  }
-                } else {
-                  return Center(child: CircularProgressIndicator(color: AppColors.white));
-                }
-              },
-            ),
-          ),
-        ],
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: _buildBody(),
       ),
     );
   }
+
+  Widget _buildBody() {
+    if (_ctrl == null || _initFuture == null) {
+      return const Center(child: CircularProgressIndicator(color: Colors.white));
+    }
+    return FutureBuilder<void>(
+      future: _initFuture,
+      builder: (ctx, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator(color: Colors.white));
+        }
+        if (_processedPath != null || (_captured != null && _isProcessing)) {
+          return _buildPreviewUI();
+        }
+        return _buildViewfinderUI();
+      },
+    );
+  }
+
+  // ── Viewfinder UI ──────────────────────────────────────────────────────────
+
+  Widget _buildViewfinderUI() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Camera preview with tap-to-focus
+        LayoutBuilder(builder: (ctx, box) {
+          return GestureDetector(
+            onTapUp: (d) => _onTapFocus(d, box),
+            child: CameraPreview(_ctrl!),
+          );
+        }),
+
+        // Document guide overlay
+        AnimatedBuilder(
+          animation: _bracketCtrl,
+          builder: (ctx, _) {
+            final Color color;
+            if (_isBlurry) {
+              color = Colors.red;
+            } else if (_isDark) {
+              color = Colors.orange;
+            } else if (_stableFrames > 0) {
+              color = Color.lerp(Colors.yellow, AppColors.success,
+                  _stableFrames / _kStableReq)!;
+            } else {
+              color = Colors.white;
+            }
+            return CustomPaint(
+              size: Size.infinite,
+              painter: _ScannerOverlayPainter(
+                bracketColor: color,
+                pulse: _stableFrames >= _kStableReq ? _bracketCtrl.value : 0,
+              ),
+            );
+          },
+        ),
+
+        // Quality badge (blur / dark)
+        _buildQualityBadge(),
+
+        // Tap focus ring
+        if (_tapFocusPoint != null)
+          Positioned(
+            left: _tapFocusPoint!.dx - 30,
+            top:  _tapFocusPoint!.dy - 30,
+            child: Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.yellow, width: 1.5),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+
+        // Stability / auto-capture indicator
+        _buildStabilityIndicator(),
+
+        // Bottom action bar
+        _buildViewfinderBar(),
+      ],
+    );
+  }
+
+  Widget _buildQualityBadge() {
+    if (!_isBlurry && !_isDark) return const SizedBox.shrink();
+    final l     = AppLocalizations.of(context);
+    final color = _isBlurry ? Colors.red : Colors.orange;
+    return Positioned(
+      top: 16, left: 0, right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withAlpha(220),
+            borderRadius: BorderRadius.circular(20)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(_isBlurry ? Icons.blur_on : Icons.light_mode,
+                color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Text(_isBlurry ? l.imageTooBlurry : l.tooDark,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStabilityIndicator() {
+    if (!_autoCapture || _stableFrames == 0) return const SizedBox.shrink();
+    final l        = AppLocalizations.of(context);
+    final progress = (_stableFrames / _kStableReq).clamp(0.0, 1.0);
+    return Positioned(
+      bottom: 96, left: 0, right: 0,
+      child: Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(
+            width: 64, height: 64,
+            child: Stack(alignment: Alignment.center, children: [
+              CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 5,
+                backgroundColor: Colors.white.withAlpha(60),
+                valueColor: AlwaysStoppedAnimation(
+                    Color.lerp(Colors.yellow, AppColors.success, progress)!)),
+              const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 26),
+            ]),
+          ),
+          const SizedBox(height: 6),
+          Text(l.holdSteady,
+              style:
+                  const TextStyle(color: Colors.white, fontSize: 11)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildViewfinderBar() {
+    final l = AppLocalizations.of(context);
+    return Positioned(
+      bottom: 0, left: 0, right: 0,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+            colors: [Colors.black.withAlpha(220), Colors.transparent],
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Gallery
+            _circleButton(
+              icon: Icons.photo_library_rounded,
+              label: 'Gallery',
+              onTap: _pickFromGallery,
+            ),
+
+            // Shutter
+            GestureDetector(
+              onTap: _takePicture,
+              child: Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white,
+                  border: Border.all(
+                      color: Colors.white.withAlpha(100), width: 4)),
+              ),
+            ),
+
+            // Auto-capture toggle
+            _circleButton(
+              icon: _autoCapture
+                  ? Icons.motion_photos_on_rounded
+                  : Icons.motion_photos_off_rounded,
+              label: l.autoCapture,
+              onTap: () => setState(() => _autoCapture = !_autoCapture),
+              active: _autoCapture,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _circleButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool active = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: 52, height: 52,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: active
+                ? AppColors.success.withAlpha(200)
+                : Colors.white.withAlpha(40),
+            border:
+                Border.all(color: Colors.white.withAlpha(100), width: 1.5)),
+          child: Icon(icon, color: Colors.white, size: 22),
+        ),
+        const SizedBox(height: 4),
+        Text(label,
+            style: const TextStyle(color: Colors.white70, fontSize: 10)),
+      ]),
+    );
+  }
+
+  // ── Preview UI (post-capture) ──────────────────────────────────────────────
+
+  Widget _buildPreviewUI() {
+    final l = AppLocalizations.of(context);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Main image
+        _processedPath != null
+            ? InteractiveViewer(
+                child: Center(
+                    child: Image.file(File(_processedPath!),
+                        fit: BoxFit.contain)))
+            : (_captured != null
+                ? Image.file(File(_captured!.path), fit: BoxFit.contain)
+                : const SizedBox.shrink()),
+
+        // Scan line animation
+        if (_showScanLine) _buildScanLine(),
+
+        // Multi-page strip (if >0 pages already confirmed)
+        if (_pages.isNotEmpty) _buildPageStrip(),
+
+        // Confidence badge
+        _buildConfidenceBadge(),
+
+        // Filter strip
+        _buildFilterStrip(l),
+
+        // Bottom action bar
+        _buildPreviewBar(l),
+
+        // Processing overlay
+        if (_isProcessing)
+          Container(
+            color: Colors.black.withAlpha(160),
+            child: const Center(
+                child: CircularProgressIndicator(color: Colors.white)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildScanLine() {
+    return AnimatedBuilder(
+      animation: _bracketCtrl,
+      builder: (ctx, child) {
+        final h = MediaQuery.of(ctx).size.height;
+        return Positioned(
+          left: 0, right: 0,
+          top: (_bracketCtrl.value * h * 2).clamp(0.0, h),
+          child: child!,
+        );
+      },
+      child: Container(
+        height: 3,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(colors: [
+            Colors.transparent,
+            AppColors.success.withAlpha(200),
+            Colors.transparent,
+          ]),
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.success.withAlpha(200),
+                blurRadius: 8,
+                spreadRadius: 2)
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPageStrip() {
+    return Positioned(
+      top: 0, left: 0, right: 0,
+      child: Container(
+        height: 72,
+        color: Colors.black.withAlpha(180),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: _pages.length,
+          itemBuilder: (_, i) => Container(
+            width: 48,
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.white.withAlpha(80), width: 1)),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: Image.file(File(_pages[i]), fit: BoxFit.cover),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConfidenceBadge() {
+    if (_processedPath == null || _mlKitBlockCount == 0) {
+      return const SizedBox.shrink();
+    }
+    final Color color;
+    final String dots;
+    if (_mlKitConfidence >= 4) {
+      color = AppColors.success; dots = '●●●';
+    } else if (_mlKitConfidence >= 2) {
+      color = AppColors.warning; dots = '●●○';
+    } else {
+      color = AppColors.danger;  dots = '●○○';
+    }
+    return Positioned(
+      top: _pages.isNotEmpty ? 80 : 12,
+      left: 12,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(200),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withAlpha(160), width: 1)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(dots,
+              style: TextStyle(
+                  color: color, fontSize: 10, letterSpacing: 2)),
+          const SizedBox(width: 6),
+          Text('OCR $_mlKitBlockCount',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildFilterStrip(AppLocalizations l) {
+    if (_processedPath == null) return const SizedBox.shrink();
+    final names = _filterNames(l);
+    return Positioned(
+      bottom: 68, left: 0, right: 0,
+      child: Container(
+        height: 88,
+        color: Colors.black.withAlpha(200),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: names.length,
+          itemBuilder: (_, i) {
+            final selected = _selectedFilter == i;
+            return GestureDetector(
+              onTap: () => _applyFilter(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(right: 10),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    width: 52, height: 52,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected ? AppColors.success : Colors.transparent,
+                        width: 2.5,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: i < _filterThumbs.length &&
+                              _filterThumbs[i].isNotEmpty
+                          ? Image.memory(_filterThumbs[i], fit: BoxFit.cover)
+                          : Container(
+                              color: Colors.grey[850],
+                              child: Icon(_filterIcons[i],
+                                  color: Colors.white54, size: 20)),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(names[i],
+                      style: TextStyle(
+                        color:
+                            selected ? AppColors.success : Colors.white60,
+                        fontSize: 9,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.normal,
+                      )),
+                ]),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewBar(AppLocalizations l) {
+    return Positioned(
+      bottom: 0, left: 0, right: 0,
+      child: Container(
+        height: 64,
+        color: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _actionBtn(Icons.replay_rounded, l.retry, _retryCapture),
+            _actionBtn(
+                Icons.crop_rounded, l.manualCrop, _openManualCrop),
+            _actionBtn(Icons.add_a_photo_rounded, '+Pág',
+                (_isProcessing || _isAnalyzingAI) ? null : _confirm),
+            _actionBtn(
+              Icons.check_circle_rounded,
+              l.apply,
+              (_isProcessing || _isAnalyzingAI)
+                  ? null
+                  : () async {
+                      await _confirm();
+                    },
+              primary: true,
+              loading: _isAnalyzingAI,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionBtn(
+    IconData icon,
+    String label,
+    VoidCallback? onTap, {
+    bool primary = false,
+    bool loading = false,
+  }) {
+    final color = primary
+        ? AppColors.success
+        : onTap == null
+            ? Colors.grey
+            : Colors.white;
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        loading
+            ? const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white))
+            : Icon(icon, color: color, size: 24),
+        const SizedBox(height: 3),
+        Text(label,
+            style: TextStyle(color: color, fontSize: 9)),
+      ]),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Scanner overlay CustomPainter
+// ══════════════════════════════════════════════════════════════════════════════
+
+class _ScannerOverlayPainter extends CustomPainter {
+  final Color bracketColor;
+  final double pulse; // 0–1 animation value for "ready" state
+
+  const _ScannerOverlayPainter({
+    required this.bracketColor,
+    required this.pulse,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Document guide rectangle — centred, 82 % × 68 % of screen
+    final guideW = size.width  * 0.82;
+    final guideH = size.height * 0.68;
+    final guide  = Rect.fromCenter(
+        center: Offset(size.width / 2, size.height * 0.46),
+        width:  guideW,
+        height: guideH);
+
+    // Dark vignette outside the guide
+    final mask = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addRRect(RRect.fromRectAndRadius(guide, const Radius.circular(8)))
+      ..fillType = PathFillType.evenOdd;
+    canvas.drawPath(mask, Paint()..color = Colors.black.withValues(alpha: 0.52));
+
+    // Subtle guide border
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(guide, const Radius.circular(8)),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.15)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1);
+
+    // Animated corner brackets
+    final bLen  = 26.0 + pulse * 8;
+    final bPaint = Paint()
+      ..color     = bracketColor
+      ..strokeWidth = 3.5
+      ..style     = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    _drawBracket(canvas, bPaint, guide.topLeft,     1,  1,  bLen);
+    _drawBracket(canvas, bPaint, guide.topRight,   -1,  1,  bLen);
+    _drawBracket(canvas, bPaint, guide.bottomRight,-1, -1,  bLen);
+    _drawBracket(canvas, bPaint, guide.bottomLeft,  1, -1,  bLen);
+  }
+
+  void _drawBracket(Canvas c, Paint p, Offset corner,
+      double dx, double dy, double len) {
+    c.drawLine(corner, corner + Offset(dx * len, 0), p);
+    c.drawLine(corner, corner + Offset(0, dy * len), p);
+  }
+
+  @override
+  bool shouldRepaint(_ScannerOverlayPainter old) =>
+      bracketColor != old.bracketColor || pulse != old.pulse;
 }

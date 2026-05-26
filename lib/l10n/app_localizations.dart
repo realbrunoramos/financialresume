@@ -343,6 +343,19 @@ class AppLocalizations {
       'sectionDeleted': 'Section deleted successfully!',
       'loading': 'Loading',
       'transactions': 'Transactions',
+      'imageTooBlurry': 'Image too blurry',
+      'tooDark': 'Too dark',
+      'holdSteady': 'Hold steady…',
+      'autoCapturing': 'Auto-capturing…',
+      'tapToCapture': 'Tap to capture',
+      'manualCrop': 'Manual Crop',
+      'dragCornersHint': 'Drag the corners to select the document',
+      'applyCorners': 'Apply',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Document',
+      'filterBW': 'B&W',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Sharp',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -673,6 +686,19 @@ class AppLocalizations {
       'sectionDeleted': 'Secção excluída com sucesso!',
       'loading': 'A carregar',
       'transactions': 'Transações',
+      'imageTooBlurry': 'Imagem desfocada',
+      'tooDark': 'Muito escuro',
+      'holdSteady': 'Mantenha firme…',
+      'autoCapturing': 'Capturando…',
+      'tapToCapture': 'Toque para capturar',
+      'manualCrop': 'Recorte Manual',
+      'dragCornersHint': 'Arraste os cantos para selecionar o documento',
+      'applyCorners': 'Aplicar',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'P&B',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Nítido',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1003,6 +1029,19 @@ class AppLocalizations {
       'sectionDeleted': '¡Sección eliminada con éxito!',
       'loading': 'Cargando',
       'transactions': 'Transacciones',
+      'imageTooBlurry': 'Imagen borrosa',
+      'tooDark': 'Muy oscuro',
+      'holdSteady': 'Mantén firme…',
+      'autoCapturing': 'Capturando…',
+      'tapToCapture': 'Toca para capturar',
+      'manualCrop': 'Recorte Manual',
+      'dragCornersHint': 'Arrastra las esquinas para seleccionar el documento',
+      'applyCorners': 'Aplicar',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'B&N',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Nítido',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1333,6 +1372,19 @@ class AppLocalizations {
       'sectionDeleted': 'Section supprimée avec succès!',
       'loading': 'Chargement',
       'transactions': 'Transactions',
+      'imageTooBlurry': 'Image floue',
+      'tooDark': 'Trop sombre',
+      'holdSteady': 'Restez immobile…',
+      'autoCapturing': 'Capture auto…',
+      'tapToCapture': 'Appuyez pour capturer',
+      'manualCrop': 'Recadrage Manuel',
+      'dragCornersHint': 'Faites glisser les coins pour sélectionner le document',
+      'applyCorners': 'Appliquer',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Document',
+      'filterBW': 'N&B',
+      'filterNatural': 'Naturel',
+      'filterSharp': 'Net',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1663,6 +1715,19 @@ class AppLocalizations {
       'sectionDeleted': 'Раздел успешно удален!',
       'loading': 'Загрузка',
       'transactions': 'Транзакции',
+      'imageTooBlurry': 'Изображение размыто',
+      'tooDark': 'Слишком темно',
+      'holdSteady': 'Держите ровно…',
+      'autoCapturing': 'Авто-захват…',
+      'tapToCapture': 'Нажмите для захвата',
+      'manualCrop': 'Ручная обрезка',
+      'dragCornersHint': 'Перетащите углы для выбора документа',
+      'applyCorners': 'Применить',
+      'autoCapture': 'Авто',
+      'filterDocument': 'Документ',
+      'filterBW': 'Ч/Б',
+      'filterNatural': 'Натуральный',
+      'filterSharp': 'Чёткий',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -1993,6 +2058,19 @@ class AppLocalizations {
       'sectionDeleted': '部分已成功删除!',
       'loading': '加载中',
       'transactions': '交易',
+      'imageTooBlurry': '图像模糊',
+      'tooDark': '太暗',
+      'holdSteady': '保持稳定…',
+      'autoCapturing': '自动拍摄…',
+      'tapToCapture': '点击拍摄',
+      'manualCrop': '手动裁剪',
+      'dragCornersHint': '拖动角点以选择文档',
+      'applyCorners': '应用',
+      'autoCapture': '自动',
+      'filterDocument': '文档',
+      'filterBW': '黑白',
+      'filterNatural': '自然',
+      'filterSharp': '锐利',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2323,6 +2401,19 @@ class AppLocalizations {
       'sectionDeleted': 'Sezione eliminata con successo!',
       'loading': 'Caricamento',
       'transactions': 'Transazioni',
+      'imageTooBlurry': 'Immagine sfocata',
+      'tooDark': 'Troppo scuro',
+      'holdSteady': 'Tieni fermo…',
+      'autoCapturing': 'Acquisizione…',
+      'tapToCapture': 'Tocca per acquisire',
+      'manualCrop': 'Ritaglio Manuale',
+      'dragCornersHint': 'Trascina gli angoli per selezionare il documento',
+      'applyCorners': 'Applica',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'B&N',
+      'filterNatural': 'Naturale',
+      'filterSharp': 'Nitido',
     },
   };
 
@@ -2665,6 +2756,21 @@ class AppLocalizations {
   String get errorLoadingSettings => _getText('errorLoadingSettings')!;
   String get language => _getText('language')!;
   String get promptLanguage => _getText('promptLanguage')!;
+
+  // Scanner overhaul strings
+  String get imageTooBlurry => _getText('imageTooBlurry')!;
+  String get tooDark => _getText('tooDark')!;
+  String get holdSteady => _getText('holdSteady')!;
+  String get autoCapturing => _getText('autoCapturing')!;
+  String get tapToCapture => _getText('tapToCapture')!;
+  String get manualCrop => _getText('manualCrop')!;
+  String get dragCornersHint => _getText('dragCornersHint')!;
+  String get applyCorners => _getText('applyCorners')!;
+  String get autoCapture => _getText('autoCapture')!;
+  String get filterDocument => _getText('filterDocument')!;
+  String get filterBW => _getText('filterBW')!;
+  String get filterNatural => _getText('filterNatural')!;
+  String get filterSharp => _getText('filterSharp')!;
 
 }
 
