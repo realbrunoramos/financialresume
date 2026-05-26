@@ -11,6 +11,7 @@ import '../theme/app_tokens.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/skeleton_loader.dart';
 import '../widgets/empty_state.dart';
+import 'analytics_screen.dart';
 import 'section_screen.dart';
 import 'settings_screen.dart';
 import 'about_screen.dart';
@@ -260,6 +261,14 @@ class _HomeScreenState extends State<HomeScreen>
           style: theme.textTheme.titleLarge,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bar_chart_rounded),
+            tooltip: loc.analytics,
+            onPressed: () => Navigator.push(
+              context,
+              slideRoute(const AnalyticsScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.info_outline_rounded),
             tooltip: loc.about,

@@ -393,6 +393,9 @@ class AppLocalizations {
       'purchaseRestored':    'Purchases restored successfully!',
       'noPurchasesToRestore': 'No purchases to restore.',
       'planManagement':      'Plan & Subscription',
+      'analytics':           'Analytics',
+      'monthlyOverview':     'Monthly Overview',
+      'topEntities':         'Top Entities',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -773,6 +776,9 @@ class AppLocalizations {
       'purchaseRestored':    'Compras restauradas com sucesso!',
       'noPurchasesToRestore': 'Sem compras para restaurar.',
       'planManagement':      'Plano e Subscrição',
+      'analytics':           'Análises',
+      'monthlyOverview':     'Resumo Mensal',
+      'topEntities':         'Principais Entidades',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1153,6 +1159,9 @@ class AppLocalizations {
       'purchaseRestored':    '¡Compras restauradas con éxito!',
       'noPurchasesToRestore': 'Sin compras para restaurar.',
       'planManagement':      'Plan y Suscripción',
+      'analytics':           'Analíticas',
+      'monthlyOverview':     'Resumen Mensual',
+      'topEntities':         'Principales Entidades',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1533,6 +1542,9 @@ class AppLocalizations {
       'purchaseRestored':    'Achats restaurés avec succès !',
       'noPurchasesToRestore': 'Aucun achat à restaurer.',
       'planManagement':      'Plan et Abonnement',
+      'analytics':           'Analytiques',
+      'monthlyOverview':     'Aperçu Mensuel',
+      'topEntities':         'Principales Entités',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1913,6 +1925,9 @@ class AppLocalizations {
       'purchaseRestored':    'Покупки успешно восстановлены!',
       'noPurchasesToRestore': 'Нет покупок для восстановления.',
       'planManagement':      'План и подписка',
+      'analytics':           'Аналитика',
+      'monthlyOverview':     'Месячный обзор',
+      'topEntities':         'Топ организации',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -2293,6 +2308,9 @@ class AppLocalizations {
       'purchaseRestored':    '购买已成功恢复！',
       'noPurchasesToRestore': '没有可恢复的购买。',
       'planManagement':      '计划和订阅',
+      'analytics':           '分析',
+      'monthlyOverview':     '月度概览',
+      'topEntities':         '主要实体',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2673,6 +2691,9 @@ class AppLocalizations {
       'purchaseRestored':    'Acquisti ripristinati con successo!',
       'noPurchasesToRestore': 'Nessun acquisto da ripristinare.',
       'planManagement':      'Piano e Abbonamento',
+      'analytics':           'Analitiche',
+      'monthlyOverview':     'Panoramica Mensile',
+      'topEntities':         'Entità Principali',
     },
   };
 
@@ -3069,6 +3090,11 @@ class AppLocalizations {
   String get purchaseRestored     => _getText('purchaseRestored')!;
   String get noPurchasesToRestore => _getText('noPurchasesToRestore')!;
   String get planManagement       => _getText('planManagement')!;
+
+  // Analytics screen
+  String get analytics        => _getText('analytics')!;
+  String get monthlyOverview  => _getText('monthlyOverview')!;
+  String get topEntities      => _getText('topEntities')!;
 
 }
 

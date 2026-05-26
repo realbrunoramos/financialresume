@@ -590,13 +590,76 @@ Future<void> addTransaction(trns.Transaction transaction) async {
   Future<double> getTotalReservedAmount(String sectionId) async {
     final db = await database;
     final result = await db.rawQuery('''
-      SELECT SUM(amount) as total 
-      FROM $reservedAmountsTable 
+      SELECT SUM(amount) as total
+      FROM $reservedAmountsTable
       WHERE sectionId = ?
     ''', [sectionId]);
 
     final total = result.first['total'] as double?;
     return total ?? 0.0;
+  }
+
+  // ── Analytics helpers ───────────────────────────────────────────────────────
+
+  /// Monthly income vs expense for the last [months] months (all sections).
+  /// Returns rows [{month: 'YYYY-MM', income: x, expense: y}] ordered oldest→newest.
+  Future<List<Map<String, dynamic>>> getMonthlyStats({int months = 6}) async {
+    final db    = await database;
+    final now   = DateTime.now();
+    final start = DateTime(now.year, now.month - (months - 1), 1);
+    return await db.rawQuery('''
+      SELECT
+        strftime('%Y-%m', date) AS month,
+        COALESCE(SUM(CASE WHEN isCredit = 1 THEN amount ELSE 0 END), 0) AS income,
+        COALESCE(SUM(CASE WHEN isCredit = 0 THEN amount ELSE 0 END), 0) AS expense
+      FROM $transactionTable
+      WHERE date >= ?
+        AND NOT (docType = '2' AND paid = 0)
+      GROUP BY month
+      ORDER BY month ASC
+    ''', [start.toIso8601String()]);
+  }
+
+  /// Global invoice counts and pending amount across all sections.
+  Future<({int pending, int overdue, double pendingAmount})>
+      getGlobalInvoiceStats() async {
+    final db  = await database;
+    final now = DateTime.now().toIso8601String();
+    final r   = await db.rawQuery('''
+      SELECT
+        COUNT(*) AS pending,
+        COALESCE(SUM(CASE WHEN dueDate IS NOT NULL AND dueDate < ? THEN 1 ELSE 0 END), 0) AS overdue,
+        COALESCE(SUM(amount), 0) AS pending_amount
+      FROM $transactionTable
+      WHERE docType = '2' AND paid = 0
+    ''', [now]);
+    return (
+      pending:       (r.first['pending']        as num?)?.toInt()    ?? 0,
+      overdue:       (r.first['overdue']         as num?)?.toInt()    ?? 0,
+      pendingAmount: (r.first['pending_amount']  as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
+  /// Top-N entities by total absolute amount across all sections.
+  Future<List<({String entity, double amount, bool isCredit})>>
+      getTopEntities({int limit = 5}) async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT entity,
+        SUM(amount) AS total,
+        MAX(isCredit) AS credit_flag
+      FROM $transactionTable
+      WHERE entity != ''
+        AND NOT (docType = '2' AND paid = 0)
+      GROUP BY entity
+      ORDER BY total DESC
+      LIMIT ?
+    ''', [limit]);
+    return rows.map((r) => (
+      entity:   r['entity']      as String,
+      amount:   (r['total']      as num).toDouble(),
+      isCredit: (r['credit_flag'] as int) == 1,
+    )).toList();
   }
 
 }
