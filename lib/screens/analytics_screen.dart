@@ -259,11 +259,12 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cur = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final loc     = AppLocalizations.of(context);
+    final cur     = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
     final balance = data.totalIncome - data.totalExpense;
     return Row(children: [
       Expanded(child: _SummaryPill(
-        label: 'Entradas (6M)',
+        label: '${loc.income} (6M)',
         value: cur.format(data.totalIncome),
         color: AppColors.success,
         icon:  Icons.trending_up_rounded,
@@ -271,7 +272,7 @@ class _SummaryRow extends StatelessWidget {
       )),
       const SizedBox(width: AppTokens.sp10),
       Expanded(child: _SummaryPill(
-        label: 'Saídas (6M)',
+        label: '${loc.expenses} (6M)',
         value: cur.format(data.totalExpense),
         color: AppColors.danger,
         icon:  Icons.trending_down_rounded,
@@ -279,7 +280,7 @@ class _SummaryRow extends StatelessWidget {
       )),
       const SizedBox(width: AppTokens.sp10),
       Expanded(child: _SummaryPill(
-        label: 'Resultado',
+        label: loc.result,
         value: cur.format(balance),
         color: balance >= 0 ? AppColors.success : AppColors.danger,
         icon:  Icons.account_balance_wallet_rounded,
@@ -416,13 +417,16 @@ class _MonthlyBarChart extends StatelessWidget {
       return SizedBox(
         height: 160,
         child: Center(
-          child: Text(
-            'Sem dados no período',
-            style: TextStyle(
-              color: isDark ? AppColors.darkSubtext : AppColors.grey400,
-              fontSize: 13,
-            ),
-          ),
+          child: Builder(builder: (ctx) {
+            final loc = AppLocalizations.of(ctx);
+            return Text(
+              loc.noDataInPeriod,
+              style: TextStyle(
+                color: isDark ? AppColors.darkSubtext : AppColors.grey400,
+                fontSize: 13,
+              ),
+            );
+          }),
         ),
       );
     }
@@ -572,14 +576,14 @@ class _InvoicePipeline extends StatelessWidget {
           Row(children: [
             _InvoicePill(
               count: data.invoicePending,
-              label: 'Pendentes',
+              label: loc.pending,
               color: AppColors.warning,
             ),
             const SizedBox(width: AppTokens.sp10),
             if (data.invoiceOverdue > 0)
               _InvoicePill(
                 count: data.invoiceOverdue,
-                label: 'Vencidas',
+                label: loc.overdue,
                 color: AppColors.danger,
               ),
             const Spacer(),

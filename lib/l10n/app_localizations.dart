@@ -396,6 +396,9 @@ class AppLocalizations {
       'analytics':           'Analytics',
       'monthlyOverview':     'Monthly Overview',
       'topEntities':         'Top Entities',
+      'noDataInPeriod':      'No data in period',
+      'pending':             'Pending',
+      'result':              'Result',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -779,6 +782,9 @@ class AppLocalizations {
       'analytics':           'Análises',
       'monthlyOverview':     'Resumo Mensal',
       'topEntities':         'Principais Entidades',
+      'noDataInPeriod':      'Sem dados no período',
+      'pending':             'Pendentes',
+      'result':              'Resultado',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1162,6 +1168,9 @@ class AppLocalizations {
       'analytics':           'Analíticas',
       'monthlyOverview':     'Resumen Mensual',
       'topEntities':         'Principales Entidades',
+      'noDataInPeriod':      'Sin datos en el período',
+      'pending':             'Pendientes',
+      'result':              'Resultado',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1545,6 +1554,9 @@ class AppLocalizations {
       'analytics':           'Analytiques',
       'monthlyOverview':     'Aperçu Mensuel',
       'topEntities':         'Principales Entités',
+      'noDataInPeriod':      'Pas de données dans la période',
+      'pending':             'En attente',
+      'result':              'Résultat',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1928,6 +1940,9 @@ class AppLocalizations {
       'analytics':           'Аналитика',
       'monthlyOverview':     'Месячный обзор',
       'topEntities':         'Топ организации',
+      'noDataInPeriod':      'Нет данных за период',
+      'pending':             'Ожидающие',
+      'result':              'Результат',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -2311,6 +2326,9 @@ class AppLocalizations {
       'analytics':           '分析',
       'monthlyOverview':     '月度概览',
       'topEntities':         '主要实体',
+      'noDataInPeriod':      '该期间无数据',
+      'pending':             '待处理',
+      'result':              '结果',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2694,6 +2712,9 @@ class AppLocalizations {
       'analytics':           'Analitiche',
       'monthlyOverview':     'Panoramica Mensile',
       'topEntities':         'Entità Principali',
+      'noDataInPeriod':      'Nessun dato nel periodo',
+      'pending':             'In sospeso',
+      'result':              'Risultato',
     },
   };
 
@@ -3095,6 +3116,9 @@ class AppLocalizations {
   String get analytics        => _getText('analytics')!;
   String get monthlyOverview  => _getText('monthlyOverview')!;
   String get topEntities      => _getText('topEntities')!;
+  String get noDataInPeriod   => _getText('noDataInPeriod')!;
+  String get pending          => _getText('pending')!;
+  String get result           => _getText('result')!;
 
 }
 
