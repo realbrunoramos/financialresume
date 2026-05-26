@@ -599,6 +599,43 @@ Future<void> addTransaction(trns.Transaction transaction) async {
     return total ?? 0.0;
   }
 
+  // ── Smart matching ──────────────────────────────────────────────────────────
+
+  /// Finds unpaid invoices (docType='2') in a section that match [entityName]
+  /// (case-insensitive prefix/substring), ordered by amount proximity to
+  /// [amount] if provided.  Used as a fallback when the AI does not supply
+  /// specific invoice IDs in the payment-proof scan flow.
+  Future<List<trns.Transaction>> findMatchingInvoices({
+    required String sectionId,
+    required String entityName,
+    double? amount,
+  }) async {
+    final db   = await database;
+    final term = '%${entityName.toLowerCase().trim()}%';
+    final rows = await db.rawQuery('''
+      SELECT * FROM $transactionTable
+      WHERE sectionId = ?
+        AND docType   = '2'
+        AND paid      = 0
+        AND LOWER(entity) LIKE ?
+      ORDER BY date DESC
+      LIMIT 15
+    ''', [sectionId, term]);
+
+    final results = rows.map((r) => trns.Transaction.fromMap(r)).toList();
+
+    // Sort by amount similarity when a reference amount is available.
+    if (amount != null && amount > 0) {
+      results.sort((a, b) {
+        final da = (a.amount - amount).abs();
+        final db = (b.amount - amount).abs();
+        return da.compareTo(db);
+      });
+    }
+
+    return results.take(8).toList();
+  }
+
   // ── Analytics helpers ───────────────────────────────────────────────────────
 
   /// Monthly income vs expense for the last [months] months (all sections).

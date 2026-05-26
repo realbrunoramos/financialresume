@@ -584,6 +584,36 @@ class _SectionScreenState extends State<SectionScreen>
     _refresh();
   }
 
+  /// Offers a SnackBar shortcut to reserve an amount that was just created as
+  /// a new unpaid invoice.  Skips silently if a reserve with the same
+  /// description already exists.
+  void _offerAutoReserve({required double amount, required String entity}) {
+    if (!mounted) return;
+    final l   = AppLocalizations.of(context);
+    final cur = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${l.reserve} ${cur.format(amount)} — $entity?'),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: l.reserve,
+          onPressed: () async {
+            if (!mounted) return;
+            if (await _db.existReserve(entity)) return;
+            await _db.insertReservedAmount(ReservedAmount(
+              id: const Uuid().v4(),
+              sectionId: widget.section.id,
+              description: entity,
+              amount: amount,
+              createdAt: DateTime.now(),
+            ));
+            _refresh();
+          },
+        ),
+      ),
+    );
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -786,7 +816,15 @@ class _SectionScreenState extends State<SectionScreen>
                     context,
                     _slide(TransactionFormScreen(
                         sectionId: widget.section.id)))
-                .then((_) => _refresh());
+                .then((result) {
+              _refresh();
+              if (result is Map && result['type'] == 'invoice') {
+                _offerAutoReserve(
+                  amount: result['amount'] as double,
+                  entity: result['entity'] as String,
+                );
+              }
+            });
           },
           icon: const Icon(Icons.add_rounded),
           label: Text(l.addTransaction),

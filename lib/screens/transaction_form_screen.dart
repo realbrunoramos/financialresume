@@ -294,7 +294,23 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
 
         String? idInvoiceRef;
         if (tipo == 3) {
-          idInvoiceRef = await _showInvoiceSelectionDialog(idsInvoiceRef);
+          if (idsInvoiceRef.isNotEmpty) {
+            // AI identified specific invoice IDs — use them directly.
+            idInvoiceRef = await _showInvoiceSelectionDialog(idsInvoiceRef);
+          } else if (entidade.isNotEmpty) {
+            // Fallback: search by entity name (+ amount similarity scoring).
+            final amount = double.tryParse(valorTotal);
+            final matches = await _dbService.findMatchingInvoices(
+              sectionId: widget.sectionId,
+              entityName: entidade,
+              amount: amount,
+            );
+            if (matches.isNotEmpty && mounted) {
+              // Reuse the same selection dialog with the matched IDs.
+              final matchedIds = matches.map((i) => i.id).join(',');
+              idInvoiceRef = await _showInvoiceSelectionDialog(matchedIds);
+            }
+          }
         }
 
         setState(() {
@@ -452,7 +468,22 @@ class _TransactionFormScreenState extends State<TransactionFormScreen> {
         }
 
         if (!mounted) return;
-        Navigator.pop(context, true);
+        // Pop with structured result so SectionScreen can offer auto-reserve
+        // for new, unpaid invoices (docType '2').
+        final isNewInvoice = widget.transaction == null &&
+            _selectedDocType == '2' &&
+            !isPaid;
+        Navigator.pop(
+          context,
+          isNewInvoice
+              ? {
+                  'type':   'invoice',
+                  'id':     transaction.id,
+                  'amount': transaction.amount,
+                  'entity': transaction.entity,
+                }
+              : true,
+        );
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
