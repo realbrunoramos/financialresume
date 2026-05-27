@@ -13,7 +13,7 @@ class AppLocalizations {
 
   static const LocalizationsDelegate<AppLocalizations> delegate = _AppLocalizationsDelegate();
 
-  static Map<String, Map<String, String>> _localizedValues = {
+  static final Map<String, Map<String, String>> _localizedValues = {
     'en': {
       "yourCompleteSolution": "Your complete solution for personal financial management",
       "mainFeatures": "Main Features",
@@ -225,6 +225,10 @@ class AppLocalizations {
       'dueInDays2': 'days',
       'invoiceActions': 'Invoice Actions',
       'whatToDoWithThisInvoice': 'What do you want to do with this invoice?',
+      'reserveWarningTitle': 'Amount Exceeds Balance',
+      'reserveWarningBody': 'The amount to reserve exceeds your available balance. Are you sure you want to continue?',
+      'copied': 'Copied',
+      'imageDownloadedSuccessfully': 'Image downloaded successfully!',
       'reserve': 'Reserve',
       'confirmDeletion': 'Confirm Deletion',
       'confirmDeleteInvoice': 'Are you sure you want to delete this invoice?',
@@ -275,6 +279,7 @@ class AppLocalizations {
       'retry': 'Retry',
       'novaReserva': 'New Booking',
       'editarReserva': 'Edit Booking',
+      'availableBalance': 'Available balance',
       'descricao': 'Description',
       'insiraDescricao': 'Please enter a description',
       'valorAReservar': 'Amount to Book',
@@ -303,6 +308,16 @@ class AppLocalizations {
       'copyLink': 'Copy Link',
       'errorOpeningLink': 'Error opening link. Please manually access: aistudio.google.com',
       'settingsSaved': 'Settings saved successfully!',
+      'appearance': 'Appearance',
+      'theme': 'Theme',
+      'themeLight': 'Light',
+      'themeSystem': 'System',
+      'themeDark': 'Dark',
+      'basicOcrExtraction': 'Basic extraction (no Gemini API)',
+      'monthlyChart': 'Monthly overview',
+      'biometricLock': 'Biometric Lock',
+      'biometricReason': 'Authenticate to open Financial Resume',
+      'unlock': 'Unlock',
       'errorSavingSettings': 'Error saving settings',
       'apiKeyRemoved': 'API key removed!',
       'apiKeyCopied': 'API key copied to clipboard!',
@@ -328,6 +343,62 @@ class AppLocalizations {
       'sectionDeleted': 'Section deleted successfully!',
       'loading': 'Loading',
       'transactions': 'Transactions',
+      'imageTooBlurry': 'Image too blurry',
+      'tooDark': 'Too dark',
+      'holdSteady': 'Hold steady…',
+      'autoCapturing': 'Auto-capturing…',
+      'tapToCapture': 'Tap to capture',
+      'manualCrop': 'Manual Crop',
+      'dragCornersHint': 'Drag the corners to select the document',
+      'applyCorners': 'Apply',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Document',
+      'filterBW': 'B&W',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Sharp',
+      // Premium AI tier
+      'premiumPlan':         'Premium Plan',
+      'freePlan':            'Free Plan',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analysing with AI…',
+      'aiSource':            'AI',
+      'fromCache':           'Cached',
+      'usageLimitReached':   'Daily AI limit reached',
+      'anomalyDetected':     'Anomaly detected',
+      'aiCallsToday':        'AI calls today',
+      'premiumFeature':      'Premium Feature',
+      'documentCategory':    'Category',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure the API key to enable AI analysis',
+      // IAP subscription
+      'upgradeToPremium':    'Upgrade to Premium',
+      'paywallTitle':        'Unlock the full power',
+      'paywallSubtitle':     'AI analysis, unlimited scans and advanced insights',
+      'monthly':             'Monthly',
+      'annual':              'Annual',
+      'save33':              'Save 33%',
+      'startPremium':        'Start Premium',
+      'restorePurchases':    'Restore Purchases',
+      'currentPlan':         'Current Plan',
+      'managePlan':          'Manage Plan',
+      'cancelAnytime':       'Cancel anytime',
+      'premiumActive':       'Premium Active',
+      'scansThisMonth':      'Scans this month',
+      'aiCallsRemaining':    'AI calls remaining',
+      'sectionsUsed':        'Sections used',
+      'featureLocked':       'Premium Feature',
+      'unlockFeature':       'Unlock with Premium',
+      'purchaseSuccess':     'Welcome to Premium!',
+      'purchaseFailed':      'Purchase failed. Please try again.',
+      'purchaseRestored':    'Purchases restored successfully!',
+      'noPurchasesToRestore': 'No purchases to restore.',
+      'planManagement':      'Plan & Subscription',
+      'analytics':           'Analytics',
+      'monthlyOverview':     'Monthly Overview',
+      'topEntities':         'Top Entities',
+      'noDataInPeriod':      'No data in period',
+      'pending':             'Pending',
+      'result':              'Result',
     },
     'pt': {
       "yourCompleteSolution": "Sua solução completa para gestão financeira pessoal",
@@ -540,6 +611,10 @@ class AppLocalizations {
       'dueInDays2': 'dias',
       'invoiceActions': 'Ações da Fatura',
       'whatToDoWithThisInvoice': 'O que deseja fazer com esta fatura?',
+      'reserveWarningTitle': 'Valor Excede o Saldo',
+      'reserveWarningBody': 'O valor a reservar excede o seu saldo disponível. Tem certeza que deseja continuar?',
+      'copied': 'Copiado',
+      'imageDownloadedSuccessfully': 'Imagem baixada com sucesso!',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Exclusão',
       'confirmDeleteInvoice': 'Tem certeza que deseja excluir esta fatura?',
@@ -590,6 +665,7 @@ class AppLocalizations {
       'retry': 'Repetir',
       'novaReserva': 'Nova Reserva',
       'editarReserva': 'Editar Reserva',
+      'availableBalance': 'Saldo disponível',
       'descricao': 'Descrição',
       'insiraDescricao': 'Por favor, insira uma descrição',
       'valorAReservar': 'Valor a Reservar',
@@ -618,6 +694,16 @@ class AppLocalizations {
       'copyLink': 'Copiar Link',
       'errorOpeningLink': 'Erro ao abrir link. Aceda manualmente a: aistudio.google.com',
       'settingsSaved': 'Configurações salvas com sucesso!',
+      'appearance': 'Aparência',
+      'theme': 'Tema',
+      'themeLight': 'Claro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Escuro',
+      'basicOcrExtraction': 'Extração básica (sem API Gemini)',
+      'monthlyChart': 'Resumo mensal',
+      'biometricLock': 'Bloqueio Biométrico',
+      'biometricReason': 'Autentique-se para abrir o Financial Resume',
+      'unlock': 'Desbloquear',
       'errorSavingSettings': 'Erro ao salvar configurações',
       'apiKeyRemoved': 'Chave API removida!',
       'apiKeyCopied': 'Chave API copiada para a área de transferência!',
@@ -643,6 +729,62 @@ class AppLocalizations {
       'sectionDeleted': 'Secção excluída com sucesso!',
       'loading': 'A carregar',
       'transactions': 'Transações',
+      'imageTooBlurry': 'Imagem desfocada',
+      'tooDark': 'Muito escuro',
+      'holdSteady': 'Mantenha firme…',
+      'autoCapturing': 'Capturando…',
+      'tapToCapture': 'Toque para capturar',
+      'manualCrop': 'Recorte Manual',
+      'dragCornersHint': 'Arraste os cantos para selecionar o documento',
+      'applyCorners': 'Aplicar',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'P&B',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Nítido',
+      // Premium AI tier
+      'premiumPlan':         'Plano Premium',
+      'freePlan':            'Plano Gratuito',
+      'planStatus':          'Plano',
+      'aiAnalysing':         'A analisar com IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite diário de IA atingido',
+      'anomalyDetected':     'Anomalia detectada',
+      'aiCallsToday':        'chamadas IA hoje',
+      'premiumFeature':      'Funcionalidade Premium',
+      'documentCategory':    'Categoria',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure a API key para activar a análise IA',
+      // IAP subscription
+      'upgradeToPremium':    'Upgrade para Premium',
+      'paywallTitle':        'Desbloqueia todo o potencial',
+      'paywallSubtitle':     'Análise IA, digitalizações ilimitadas e insights avançados',
+      'monthly':             'Mensal',
+      'annual':              'Anual',
+      'save33':              'Poupa 33%',
+      'startPremium':        'Iniciar Premium',
+      'restorePurchases':    'Restaurar Compras',
+      'currentPlan':         'Plano Atual',
+      'managePlan':          'Gerir Plano',
+      'cancelAnytime':       'Cancela quando quiseres',
+      'premiumActive':       'Premium Ativo',
+      'scansThisMonth':      'Digitalizações este mês',
+      'aiCallsRemaining':    'Chamadas IA restantes',
+      'sectionsUsed':        'Secções utilizadas',
+      'featureLocked':       'Funcionalidade Premium',
+      'unlockFeature':       'Desbloquear com Premium',
+      'purchaseSuccess':     'Bem-vindo ao Premium!',
+      'purchaseFailed':      'Compra falhada. Tenta novamente.',
+      'purchaseRestored':    'Compras restauradas com sucesso!',
+      'noPurchasesToRestore': 'Sem compras para restaurar.',
+      'planManagement':      'Plano e Subscrição',
+      'analytics':           'Análises',
+      'monthlyOverview':     'Resumo Mensal',
+      'topEntities':         'Principais Entidades',
+      'noDataInPeriod':      'Sem dados no período',
+      'pending':             'Pendentes',
+      'result':              'Resultado',
     },
     'es': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -855,6 +997,10 @@ class AppLocalizations {
       'dueInDays2': 'días',
       'invoiceActions': 'Acciones de la Factura',
       'whatToDoWithThisInvoice': '¿Qué desea hacer con esta factura?',
+      'reserveWarningTitle': 'Monto Supera el Saldo',
+      'reserveWarningBody': 'El monto a reservar supera su saldo disponible. ¿Está seguro de que desea continuar?',
+      'copied': 'Copiado',
+      'imageDownloadedSuccessfully': '¡Imagen descargada con éxito!',
       'reserve': 'Reservar',
       'confirmDeletion': 'Confirmar Eliminación',
       'confirmDeleteInvoice': '¿Está seguro de que desea eliminar esta factura?',
@@ -905,6 +1051,7 @@ class AppLocalizations {
       'retry': 'Reintentar',
       'novaReserva': 'Nueva Reserva',
       'editarReserva': 'Editar Reserva',
+      'availableBalance': 'Saldo disponible',
       'descricao': 'Descripción',
       'insiraDescricao': 'Por favor, introduca una descripción',
       'valorAReservar': 'Valor a Reservar',
@@ -933,6 +1080,16 @@ class AppLocalizations {
       'copyLink': 'Copiar Enlace',
       'errorOpeningLink': 'Error al abrir el enlace. Acceda manualmente a: aistudio.google.com',
       'settingsSaved': '¡Configuración guardada con éxito!',
+      'appearance': 'Apariencia',
+      'theme': 'Tema',
+      'themeLight': 'Claro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Oscuro',
+      'basicOcrExtraction': 'Extracción básica (sin API Gemini)',
+      'monthlyChart': 'Resumen mensual',
+      'biometricLock': 'Bloqueo Biométrico',
+      'biometricReason': 'Autentíquese para abrir Financial Resume',
+      'unlock': 'Desbloquear',
       'errorSavingSettings': 'Error al guardar la configuración',
       'apiKeyRemoved': '¡Clave API eliminada!',
       'apiKeyCopied': '¡Clave API copiada al portapapeles!',
@@ -958,6 +1115,62 @@ class AppLocalizations {
       'sectionDeleted': '¡Sección eliminada con éxito!',
       'loading': 'Cargando',
       'transactions': 'Transacciones',
+      'imageTooBlurry': 'Imagen borrosa',
+      'tooDark': 'Muy oscuro',
+      'holdSteady': 'Mantén firme…',
+      'autoCapturing': 'Capturando…',
+      'tapToCapture': 'Toca para capturar',
+      'manualCrop': 'Recorte Manual',
+      'dragCornersHint': 'Arrastra las esquinas para seleccionar el documento',
+      'applyCorners': 'Aplicar',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'B&N',
+      'filterNatural': 'Natural',
+      'filterSharp': 'Nítido',
+      // Premium AI tier
+      'premiumPlan':         'Plan Premium',
+      'freePlan':            'Plan Gratuito',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analizando con IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Caché',
+      'usageLimitReached':   'Límite diario de IA alcanzado',
+      'anomalyDetected':     'Anomalía detectada',
+      'aiCallsToday':        'llamadas IA hoy',
+      'premiumFeature':      'Función Premium',
+      'documentCategory':    'Categoría',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configure la clave API para activar el análisis IA',
+      // IAP subscription
+      'upgradeToPremium':    'Actualizar a Premium',
+      'paywallTitle':        'Desbloquea todo el potencial',
+      'paywallSubtitle':     'Análisis IA, escaneos ilimitados e insights avanzados',
+      'monthly':             'Mensual',
+      'annual':              'Anual',
+      'save33':              'Ahorra 33%',
+      'startPremium':        'Iniciar Premium',
+      'restorePurchases':    'Restaurar Compras',
+      'currentPlan':         'Plan Actual',
+      'managePlan':          'Gestionar Plan',
+      'cancelAnytime':       'Cancela cuando quieras',
+      'premiumActive':       'Premium Activo',
+      'scansThisMonth':      'Escaneos este mes',
+      'aiCallsRemaining':    'Llamadas IA restantes',
+      'sectionsUsed':        'Secciones usadas',
+      'featureLocked':       'Función Premium',
+      'unlockFeature':       'Desbloquear con Premium',
+      'purchaseSuccess':     '¡Bienvenido a Premium!',
+      'purchaseFailed':      'Compra fallida. Inténtalo de nuevo.',
+      'purchaseRestored':    '¡Compras restauradas con éxito!',
+      'noPurchasesToRestore': 'Sin compras para restaurar.',
+      'planManagement':      'Plan y Suscripción',
+      'analytics':           'Analíticas',
+      'monthlyOverview':     'Resumen Mensual',
+      'topEntities':         'Principales Entidades',
+      'noDataInPeriod':      'Sin datos en el período',
+      'pending':             'Pendientes',
+      'result':              'Resultado',
     },
     'fr': {
       "yourCompleteSolution": "Tu solución completa para la gestión financiera personal",
@@ -1170,6 +1383,10 @@ class AppLocalizations {
       'dueInDays2': 'jours',
       'invoiceActions': 'Actions de la facture',
       'whatToDoWithThisInvoice': 'Que voulez-vous faire avec cette facture?',
+      'reserveWarningTitle': 'Montant Dépasse le Solde',
+      'reserveWarningBody': 'Le montant à réserver dépasse votre solde disponible. Êtes-vous sûr de vouloir continuer?',
+      'copied': 'Copié',
+      'imageDownloadedSuccessfully': 'Image téléchargée avec succès!',
       'reserve': 'Réserver',
       'confirmDeletion': 'Confirmer la suppression',
       'confirmDeleteInvoice': 'Êtes-vous sûr de vouloir supprimer cette facture?',
@@ -1220,6 +1437,7 @@ class AppLocalizations {
       'retry': 'Réessayer',
       'novaReserva': 'Nouvelle réservation',
       'editarReserva': 'Modifier la réservation',
+      'availableBalance': 'Solde disponible',
       'descricao': 'Description',
       'insiraDescricao': 'Veuillez entrer une description',
       'valorAReservar': 'Montant à réserver',
@@ -1248,6 +1466,16 @@ class AppLocalizations {
       'copyLink': 'Copier le lien',
       'errorOpeningLink': 'Erreur lors de l\'ouverture du lien. Accédez manuellement à: aistudio.google.com',
       'settingsSaved': 'Paramètres sauvegardés avec succès!',
+      'appearance': 'Apparence',
+      'theme': 'Thème',
+      'themeLight': 'Clair',
+      'themeSystem': 'Système',
+      'themeDark': 'Sombre',
+      'basicOcrExtraction': 'Extraction de base (sans API Gemini)',
+      'monthlyChart': 'Aperçu mensuel',
+      'biometricLock': 'Verrou Biométrique',
+      'biometricReason': 'Authentifiez-vous pour ouvrir Financial Resume',
+      'unlock': 'Déverrouiller',
       'errorSavingSettings': 'Erreur lors de la sauvegarde des paramètres',
       'apiKeyRemoved': 'Clé API supprimée!',
       'apiKeyCopied': 'Clé API copiée dans le presse-papiers!',
@@ -1273,6 +1501,62 @@ class AppLocalizations {
       'sectionDeleted': 'Section supprimée avec succès!',
       'loading': 'Chargement',
       'transactions': 'Transactions',
+      'imageTooBlurry': 'Image floue',
+      'tooDark': 'Trop sombre',
+      'holdSteady': 'Restez immobile…',
+      'autoCapturing': 'Capture auto…',
+      'tapToCapture': 'Appuyez pour capturer',
+      'manualCrop': 'Recadrage Manuel',
+      'dragCornersHint': 'Faites glisser les coins pour sélectionner le document',
+      'applyCorners': 'Appliquer',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Document',
+      'filterBW': 'N&B',
+      'filterNatural': 'Naturel',
+      'filterSharp': 'Net',
+      // Premium AI tier
+      'premiumPlan':         'Plan Premium',
+      'freePlan':            'Plan Gratuit',
+      'planStatus':          'Plan',
+      'aiAnalysing':         'Analyse IA en cours…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite quotidienne IA atteinte',
+      'anomalyDetected':     'Anomalie détectée',
+      'aiCallsToday':        'appels IA aujourd\'hui',
+      'premiumFeature':      'Fonctionnalité Premium',
+      'documentCategory':    'Catégorie',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configurez la clé API pour activer l\'analyse IA',
+      // IAP subscription
+      'upgradeToPremium':    'Passer à Premium',
+      'paywallTitle':        'Déverrouillez toute la puissance',
+      'paywallSubtitle':     'Analyse IA, numérisations illimitées et insights avancés',
+      'monthly':             'Mensuel',
+      'annual':              'Annuel',
+      'save33':              'Économisez 33%',
+      'startPremium':        'Démarrer Premium',
+      'restorePurchases':    'Restaurer les Achats',
+      'currentPlan':         'Plan Actuel',
+      'managePlan':          'Gérer le Plan',
+      'cancelAnytime':       'Annulez à tout moment',
+      'premiumActive':       'Premium Actif',
+      'scansThisMonth':      'Numérisations ce mois',
+      'aiCallsRemaining':    'Appels IA restants',
+      'sectionsUsed':        'Sections utilisées',
+      'featureLocked':       'Fonctionnalité Premium',
+      'unlockFeature':       'Déverrouiller avec Premium',
+      'purchaseSuccess':     'Bienvenue dans Premium !',
+      'purchaseFailed':      'Achat échoué. Réessayez.',
+      'purchaseRestored':    'Achats restaurés avec succès !',
+      'noPurchasesToRestore': 'Aucun achat à restaurer.',
+      'planManagement':      'Plan et Abonnement',
+      'analytics':           'Analytiques',
+      'monthlyOverview':     'Aperçu Mensuel',
+      'topEntities':         'Principales Entités',
+      'noDataInPeriod':      'Pas de données dans la période',
+      'pending':             'En attente',
+      'result':              'Résultat',
     },
     'ru': {
       "yourCompleteSolution": "Ваше полное решение для управления личными финансами",
@@ -1485,6 +1769,10 @@ class AppLocalizations {
       'dueInDays2': 'дней',
       'invoiceActions': 'Действия со счетом',
       'whatToDoWithThisInvoice': 'Что вы хотите сделать с этим счетом?',
+      'reserveWarningTitle': 'Сумма Превышает Баланс',
+      'reserveWarningBody': 'Сумма для резерва превышает ваш доступный баланс. Вы уверены, что хотите продолжить?',
+      'copied': 'Скопировано',
+      'imageDownloadedSuccessfully': 'Изображение скачано успешно!',
       'reserve': 'Резервировать',
       'confirmDeletion': 'Подтвердить удаление',
       'confirmDeleteInvoice': 'Вы уверены, что хотите удалить этот счет?',
@@ -1535,6 +1823,7 @@ class AppLocalizations {
       'retry': 'Повторить',
       'novaReserva': 'Новый резерв',
       'editarReserva': 'Редактировать резерв',
+      'availableBalance': 'Доступный баланс',
       'descricao': 'Описание',
       'insiraDescricao': 'Пожалуйста, введите описание',
       'valorAReservar': 'Сумма для резерва',
@@ -1563,6 +1852,16 @@ class AppLocalizations {
       'copyLink': 'Копировать ссылку',
       'errorOpeningLink': 'Ошибка открытия ссылки. Перейдите вручную: aistudio.google.com',
       'settingsSaved': 'Настройки успешно сохранены!',
+      'appearance': 'Внешний вид',
+      'theme': 'Тема',
+      'themeLight': 'Светлая',
+      'themeSystem': 'Системная',
+      'themeDark': 'Тёмная',
+      'basicOcrExtraction': 'Базовое извлечение (без API Gemini)',
+      'monthlyChart': 'Ежемесячный обзор',
+      'biometricLock': 'Биометрическая блокировка',
+      'biometricReason': 'Пройдите аутентификацию для входа',
+      'unlock': 'Разблокировать',
       'errorSavingSettings': 'Ошибка сохранения настроек',
       'apiKeyRemoved': 'Ключ API удален!',
       'apiKeyCopied': 'Ключ API скопирован в буфер обмена!',
@@ -1588,6 +1887,62 @@ class AppLocalizations {
       'sectionDeleted': 'Раздел успешно удален!',
       'loading': 'Загрузка',
       'transactions': 'Транзакции',
+      'imageTooBlurry': 'Изображение размыто',
+      'tooDark': 'Слишком темно',
+      'holdSteady': 'Держите ровно…',
+      'autoCapturing': 'Авто-захват…',
+      'tapToCapture': 'Нажмите для захвата',
+      'manualCrop': 'Ручная обрезка',
+      'dragCornersHint': 'Перетащите углы для выбора документа',
+      'applyCorners': 'Применить',
+      'autoCapture': 'Авто',
+      'filterDocument': 'Документ',
+      'filterBW': 'Ч/Б',
+      'filterNatural': 'Натуральный',
+      'filterSharp': 'Чёткий',
+      // Premium AI tier
+      'premiumPlan':         'Премиум план',
+      'freePlan':            'Бесплатный план',
+      'planStatus':          'План',
+      'aiAnalysing':         'Анализ с ИИ…',
+      'aiSource':            'ИИ',
+      'fromCache':           'Кэш',
+      'usageLimitReached':   'Дневной лимит ИИ достигнут',
+      'anomalyDetected':     'Аномалия обнаружена',
+      'aiCallsToday':        'вызовов ИИ сегодня',
+      'premiumFeature':      'Премиум функция',
+      'documentCategory':    'Категория',
+      'aiInsights':          'Выводы',
+      'configureApiKeyForAi': 'Настройте API ключ для анализа ИИ',
+      // IAP subscription
+      'upgradeToPremium':    'Перейти на Premium',
+      'paywallTitle':        'Откройте все возможности',
+      'paywallSubtitle':     'Анализ ИИ, неограниченное сканирование и аналитика',
+      'monthly':             'Ежемесячно',
+      'annual':              'Ежегодно',
+      'save33':              'Экономия 33%',
+      'startPremium':        'Начать Premium',
+      'restorePurchases':    'Восстановить покупки',
+      'currentPlan':         'Текущий план',
+      'managePlan':          'Управление планом',
+      'cancelAnytime':       'Отмена в любое время',
+      'premiumActive':       'Premium активен',
+      'scansThisMonth':      'Сканирований в этом месяце',
+      'aiCallsRemaining':    'Осталось вызовов ИИ',
+      'sectionsUsed':        'Использовано разделов',
+      'featureLocked':       'Функция Premium',
+      'unlockFeature':       'Открыть с Premium',
+      'purchaseSuccess':     'Добро пожаловать в Premium!',
+      'purchaseFailed':      'Ошибка покупки. Попробуйте снова.',
+      'purchaseRestored':    'Покупки успешно восстановлены!',
+      'noPurchasesToRestore': 'Нет покупок для восстановления.',
+      'planManagement':      'План и подписка',
+      'analytics':           'Аналитика',
+      'monthlyOverview':     'Месячный обзор',
+      'topEntities':         'Топ организации',
+      'noDataInPeriod':      'Нет данных за период',
+      'pending':             'Ожидающие',
+      'result':              'Результат',
     },
     'zh': {
       "yourCompleteSolution": "您个人财务管理的完整解决方案",
@@ -1800,6 +2155,10 @@ class AppLocalizations {
       'dueInDays2': '天后到期',
       'invoiceActions': '发票操作',
       'whatToDoWithThisInvoice': '您想对此发票做什么?',
+      'reserveWarningTitle': '金额超出余额',
+      'reserveWarningBody': '要保留的金额超过了您的可用余额。您确定要继续吗？',
+      'copied': '已复制',
+      'imageDownloadedSuccessfully': '图片下载成功！',
       'reserve': '保留',
       'confirmDeletion': '确认删除',
       'confirmDeleteInvoice': '您确定要删除此发票吗?',
@@ -1850,6 +2209,7 @@ class AppLocalizations {
       'retry': '重试',
       'novaReserva': '新保留',
       'editarReserva': '编辑保留',
+      'availableBalance': '可用余额',
       'descricao': '描述',
       'insiraDescricao': '请输入描述',
       'valorAReservar': '保留金额',
@@ -1878,6 +2238,16 @@ class AppLocalizations {
       'copyLink': '复制链接',
       'errorOpeningLink': '打开链接错误。请手动访问: aistudio.google.com',
       'settingsSaved': '设置保存成功!',
+      'appearance': '外观',
+      'theme': '主题',
+      'themeLight': '浅色',
+      'themeSystem': '系统',
+      'themeDark': '深色',
+      'basicOcrExtraction': '基础提取（无Gemini API）',
+      'monthlyChart': '月度概览',
+      'biometricLock': '生物识别锁',
+      'biometricReason': '验证身份以打开Financial Resume',
+      'unlock': '解锁',
       'errorSavingSettings': '保存设置错误',
       'apiKeyRemoved': 'API密钥已删除!',
       'apiKeyCopied': 'API密钥已复制到剪贴板!',
@@ -1903,6 +2273,62 @@ class AppLocalizations {
       'sectionDeleted': '部分已成功删除!',
       'loading': '加载中',
       'transactions': '交易',
+      'imageTooBlurry': '图像模糊',
+      'tooDark': '太暗',
+      'holdSteady': '保持稳定…',
+      'autoCapturing': '自动拍摄…',
+      'tapToCapture': '点击拍摄',
+      'manualCrop': '手动裁剪',
+      'dragCornersHint': '拖动角点以选择文档',
+      'applyCorners': '应用',
+      'autoCapture': '自动',
+      'filterDocument': '文档',
+      'filterBW': '黑白',
+      'filterNatural': '自然',
+      'filterSharp': '锐利',
+      // Premium AI tier
+      'premiumPlan':         '高级计划',
+      'freePlan':            '免费计划',
+      'planStatus':          '计划',
+      'aiAnalysing':         'AI 分析中…',
+      'aiSource':            'AI',
+      'fromCache':           '缓存',
+      'usageLimitReached':   '已达到每日 AI 限制',
+      'anomalyDetected':     '检测到异常',
+      'aiCallsToday':        '今日 AI 调用次数',
+      'premiumFeature':      '高级功能',
+      'documentCategory':    '类别',
+      'aiInsights':          '洞察',
+      'configureApiKeyForAi': '配置 API 密钥以启用 AI 分析',
+      // IAP subscription
+      'upgradeToPremium':    '升级到 Premium',
+      'paywallTitle':        '解锁全部功能',
+      'paywallSubtitle':     'AI 分析，无限次扫描和高级洞察',
+      'monthly':             '每月',
+      'annual':              '每年',
+      'save33':              '节省 33%',
+      'startPremium':        '开始 Premium',
+      'restorePurchases':    '恢复购买',
+      'currentPlan':         '当前计划',
+      'managePlan':          '管理计划',
+      'cancelAnytime':       '随时取消',
+      'premiumActive':       'Premium 已激活',
+      'scansThisMonth':      '本月扫描次数',
+      'aiCallsRemaining':    '剩余 AI 调用次数',
+      'sectionsUsed':        '已使用版块',
+      'featureLocked':       'Premium 功能',
+      'unlockFeature':       '用 Premium 解锁',
+      'purchaseSuccess':     '欢迎使用 Premium！',
+      'purchaseFailed':      '购买失败，请重试。',
+      'purchaseRestored':    '购买已成功恢复！',
+      'noPurchasesToRestore': '没有可恢复的购买。',
+      'planManagement':      '计划和订阅',
+      'analytics':           '分析',
+      'monthlyOverview':     '月度概览',
+      'topEntities':         '主要实体',
+      'noDataInPeriod':      '该期间无数据',
+      'pending':             '待处理',
+      'result':              '结果',
     },
     'it': {
       "yourCompleteSolution": "La tua soluzione completa per la gestione finanziaria personale",
@@ -2115,6 +2541,10 @@ class AppLocalizations {
       'dueInDays2': 'giorni',
       'invoiceActions': 'Azioni fattura',
       'whatToDoWithThisInvoice': 'Cosa vuoi fare con questa fattura?',
+      'reserveWarningTitle': 'Importo Supera il Saldo',
+      'reserveWarningBody': "L'importo da prenotare supera il saldo disponibile. Sei sicuro di voler procedere?",
+      'copied': 'Copiato',
+      'imageDownloadedSuccessfully': 'Immagine scaricata con successo!',
       'reserve': 'Prenota',
       'confirmDeletion': 'Conferma eliminazione',
       'confirmDeleteInvoice': 'Sei sicuro di voler eliminare questa fattura?',
@@ -2165,6 +2595,7 @@ class AppLocalizations {
       'retry': 'Riprova',
       'novaReserva': 'Nuova prenotazione',
       'editarReserva': 'Modifica prenotazione',
+      'availableBalance': 'Saldo disponibile',
       'descricao': 'Descrizione',
       'insiraDescricao': 'Si prega di inserire una descrizione',
       'valorAReservar': 'Importo da prenotare',
@@ -2193,6 +2624,16 @@ class AppLocalizations {
       'copyLink': 'Copia link',
       'errorOpeningLink': 'Errore apertura link. Accedi manualmente a: aistudio.google.com',
       'settingsSaved': 'Impostazioni salvate con successo!',
+      'appearance': 'Aspetto',
+      'theme': 'Tema',
+      'themeLight': 'Chiaro',
+      'themeSystem': 'Sistema',
+      'themeDark': 'Scuro',
+      'basicOcrExtraction': 'Estrazione di base (senza API Gemini)',
+      'monthlyChart': 'Panoramica mensile',
+      'biometricLock': 'Blocco Biometrico',
+      'biometricReason': 'Autenticati per aprire Financial Resume',
+      'unlock': 'Sblocca',
       'errorSavingSettings': 'Errore salvataggio impostazioni',
       'apiKeyRemoved': 'Chiave API rimossa!',
       'apiKeyCopied': 'Chiave API copiata negli appunti!',
@@ -2218,6 +2659,62 @@ class AppLocalizations {
       'sectionDeleted': 'Sezione eliminata con successo!',
       'loading': 'Caricamento',
       'transactions': 'Transazioni',
+      'imageTooBlurry': 'Immagine sfocata',
+      'tooDark': 'Troppo scuro',
+      'holdSteady': 'Tieni fermo…',
+      'autoCapturing': 'Acquisizione…',
+      'tapToCapture': 'Tocca per acquisire',
+      'manualCrop': 'Ritaglio Manuale',
+      'dragCornersHint': 'Trascina gli angoli per selezionare il documento',
+      'applyCorners': 'Applica',
+      'autoCapture': 'Auto',
+      'filterDocument': 'Documento',
+      'filterBW': 'B&N',
+      'filterNatural': 'Naturale',
+      'filterSharp': 'Nitido',
+      // Premium AI tier
+      'premiumPlan':         'Piano Premium',
+      'freePlan':            'Piano Gratuito',
+      'planStatus':          'Piano',
+      'aiAnalysing':         'Analisi con IA…',
+      'aiSource':            'IA',
+      'fromCache':           'Cache',
+      'usageLimitReached':   'Limite giornaliero IA raggiunto',
+      'anomalyDetected':     'Anomalia rilevata',
+      'aiCallsToday':        'chiamate IA oggi',
+      'premiumFeature':      'Funzionalità Premium',
+      'documentCategory':    'Categoria',
+      'aiInsights':          'Insights',
+      'configureApiKeyForAi': 'Configura la chiave API per attivare l\'analisi IA',
+      // IAP subscription
+      'upgradeToPremium':    'Passa a Premium',
+      'paywallTitle':        'Sblocca tutta la potenza',
+      'paywallSubtitle':     'Analisi IA, scansioni illimitate e insight avanzati',
+      'monthly':             'Mensile',
+      'annual':              'Annuale',
+      'save33':              'Risparmia 33%',
+      'startPremium':        'Inizia Premium',
+      'restorePurchases':    'Ripristina Acquisti',
+      'currentPlan':         'Piano Attuale',
+      'managePlan':          'Gestisci Piano',
+      'cancelAnytime':       'Annulla quando vuoi',
+      'premiumActive':       'Premium Attivo',
+      'scansThisMonth':      'Scansioni questo mese',
+      'aiCallsRemaining':    'Chiamate IA rimanenti',
+      'sectionsUsed':        'Sezioni utilizzate',
+      'featureLocked':       'Funzione Premium',
+      'unlockFeature':       'Sblocca con Premium',
+      'purchaseSuccess':     'Benvenuto in Premium!',
+      'purchaseFailed':      'Acquisto fallito. Riprova.',
+      'purchaseRestored':    'Acquisti ripristinati con successo!',
+      'noPurchasesToRestore': 'Nessun acquisto da ripristinare.',
+      'planManagement':      'Piano e Abbonamento',
+      'analytics':           'Analitiche',
+      'monthlyOverview':     'Panoramica Mensile',
+      'topEntities':         'Entità Principali',
+      'noDataInPeriod':      'Nessun dato nel periodo',
+      'pending':             'In sospeso',
+      'result':              'Risultato',
     },
   };
 
@@ -2452,6 +2949,10 @@ class AppLocalizations {
   String get unknownEntity => _getText('unknownEntity')!;
   String get whatToDo => _getText('whatToDo')!;
   String get whatToDoWithThisInvoice => _getText('whatToDoWithThisInvoice')!;
+  String get reserveWarningTitle => _getText('reserveWarningTitle')!;
+  String get reserveWarningBody => _getText('reserveWarningBody')!;
+  String get copied => _getText('copied')!;
+  String get imageDownloadedSuccessfully => _getText('imageDownloadedSuccessfully')!;
   String get addMorePages => _getText('addMorePages')!;
   String get addMorePagesQuestion => _getText('addMorePagesQuestion')!;
   String get amountToReserve => _getText('amountToReserve')!;
@@ -2499,6 +3000,7 @@ class AppLocalizations {
   String get enterAmount => _getText('insiraValor')!;
   String get enterValidAmount => _getText('insiraValorValido')!;
   String get newReserve => _getText('novaReserva')!;
+  String get availableBalance => _getText('availableBalance')!;
   String get valorAReservar => _getText('valorAReservar')!;
   String get faturaTransacao => _getText('faturaTransacao')!;
   String get visualizarFatura => _getText('visualizarFatura')!;
@@ -2522,6 +3024,16 @@ class AppLocalizations {
   String get copyLink => _getText('copyLink')!;
   String get errorOpeningLink => _getText('errorOpeningLink')!;
   String get settingsSaved => _getText('settingsSaved')!;
+  String get appearance => _getText('appearance')!;
+  String get theme => _getText('theme')!;
+  String get themeLight => _getText('themeLight')!;
+  String get themeSystem => _getText('themeSystem')!;
+  String get themeDark => _getText('themeDark')!;
+  String get basicOcrExtraction => _getText('basicOcrExtraction')!;
+  String get monthlyChart => _getText('monthlyChart')!;
+  String get biometricLock => _getText('biometricLock')!;
+  String get biometricReason => _getText('biometricReason')!;
+  String get unlock => _getText('unlock')!;
   String get errorSavingSettings => _getText('errorSavingSettings')!;
   String get apiKeyRemoved => _getText('apiKeyRemoved')!;
   String get apiKeyCopied => _getText('apiKeyCopied')!;
@@ -2545,6 +3057,68 @@ class AppLocalizations {
   String get errorLoadingSettings => _getText('errorLoadingSettings')!;
   String get language => _getText('language')!;
   String get promptLanguage => _getText('promptLanguage')!;
+
+  // Scanner overhaul strings
+  String get imageTooBlurry => _getText('imageTooBlurry')!;
+  String get tooDark => _getText('tooDark')!;
+  String get holdSteady => _getText('holdSteady')!;
+  String get autoCapturing => _getText('autoCapturing')!;
+  String get tapToCapture => _getText('tapToCapture')!;
+  String get manualCrop => _getText('manualCrop')!;
+  String get dragCornersHint => _getText('dragCornersHint')!;
+  String get applyCorners => _getText('applyCorners')!;
+  String get autoCapture => _getText('autoCapture')!;
+  String get filterDocument => _getText('filterDocument')!;
+  String get filterBW => _getText('filterBW')!;
+  String get filterNatural => _getText('filterNatural')!;
+  String get filterSharp => _getText('filterSharp')!;
+
+  // Premium AI tier strings
+  String get premiumPlan          => _getText('premiumPlan')!;
+  String get freePlan             => _getText('freePlan')!;
+  String get planStatus           => _getText('planStatus')!;
+  String get aiAnalysing          => _getText('aiAnalysing')!;
+  String get aiSource             => _getText('aiSource')!;
+  String get fromCache            => _getText('fromCache')!;
+  String get usageLimitReached    => _getText('usageLimitReached')!;
+  String get anomalyDetected      => _getText('anomalyDetected')!;
+  String get aiCallsToday         => _getText('aiCallsToday')!;
+  String get premiumFeature       => _getText('premiumFeature')!;
+  String get documentCategory     => _getText('documentCategory')!;
+  String get aiInsights           => _getText('aiInsights')!;
+  String get configureApiKeyForAi => _getText('configureApiKeyForAi')!;
+
+  // IAP subscription strings
+  String get upgradeToPremium     => _getText('upgradeToPremium')!;
+  String get paywallTitle         => _getText('paywallTitle')!;
+  String get paywallSubtitle      => _getText('paywallSubtitle')!;
+  String get monthly              => _getText('monthly')!;
+  String get annual               => _getText('annual')!;
+  String get save33               => _getText('save33')!;
+  String get startPremium         => _getText('startPremium')!;
+  String get restorePurchases     => _getText('restorePurchases')!;
+  String get currentPlan          => _getText('currentPlan')!;
+  String get managePlan           => _getText('managePlan')!;
+  String get cancelAnytime        => _getText('cancelAnytime')!;
+  String get premiumActive        => _getText('premiumActive')!;
+  String get scansThisMonth       => _getText('scansThisMonth')!;
+  String get aiCallsRemaining     => _getText('aiCallsRemaining')!;
+  String get sectionsUsed         => _getText('sectionsUsed')!;
+  String get featureLocked        => _getText('featureLocked')!;
+  String get unlockFeature        => _getText('unlockFeature')!;
+  String get purchaseSuccess      => _getText('purchaseSuccess')!;
+  String get purchaseFailed       => _getText('purchaseFailed')!;
+  String get purchaseRestored     => _getText('purchaseRestored')!;
+  String get noPurchasesToRestore => _getText('noPurchasesToRestore')!;
+  String get planManagement       => _getText('planManagement')!;
+
+  // Analytics screen
+  String get analytics        => _getText('analytics')!;
+  String get monthlyOverview  => _getText('monthlyOverview')!;
+  String get topEntities      => _getText('topEntities')!;
+  String get noDataInPeriod   => _getText('noDataInPeriod')!;
+  String get pending          => _getText('pending')!;
+  String get result           => _getText('result')!;
 
 }
 

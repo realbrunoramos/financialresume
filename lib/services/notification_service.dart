@@ -1,34 +1,31 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
   Future<void> initNotification() async {
-    tz.initializeTimeZones();
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    AndroidInitializationSettings initializationSettingsAndroid =
-        const AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
+    const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
 
-    InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
+    const initSettings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
     );
 
     await notificationsPlugin.initialize(
-      initializationSettings,
+      initSettings,
       onDidReceiveNotificationResponse:
           (NotificationResponse notificationResponse) async {
-        print('Notificação clicada: ${notificationResponse.payload}');
+        debugPrint('Notificação clicada: ${notificationResponse.payload}');
       },
     );
 
@@ -77,7 +74,7 @@ class NotificationService {
         payload: payload,
       );
     } catch (e) {
-      print('Erro ao mostrar notificação: $e');
+      debugPrint('Erro ao mostrar notificação: $e');
     }
   }
 
@@ -93,7 +90,7 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
     } catch (e) {
-      print('Erro ao agendar notificação: $e');
+      debugPrint('Erro ao agendar notificação: $e');
     }
   }
 

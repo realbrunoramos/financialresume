@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/database_service.dart';
 
 class LanguageProvider with ChangeNotifier {
-  Locale _locale = Locale('pt');
+  Locale _locale = const Locale('pt');
   final DatabaseService _dbService = DatabaseService();
 
   Locale get locale => _locale;
@@ -19,7 +19,7 @@ class LanguageProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      print('Error loading language: $e');
+      debugPrint('Error loading language: $e');
     }
   }
 

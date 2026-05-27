@@ -5,7 +5,7 @@ class ReservedAmount {
   final double amount;
   final DateTime createdAt;
 
-  ReservedAmount({
+  const ReservedAmount({
     required this.id,
     required this.sectionId,
     required this.description,

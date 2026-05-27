@@ -17,7 +17,7 @@ class TransactionProvider with ChangeNotifier {
     try {
       _transactions = await _dbService.getAllTransactions(sectionId);
     } catch (e) {
-      print('Erro ao carregar transações: $e');
+      debugPrint('Erro ao carregar transações: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -29,7 +29,7 @@ class TransactionProvider with ChangeNotifier {
       await _dbService.addTransaction(transaction);
       await loadTransactions(transaction.sectionId);
     } catch (e) {
-      print('Erro ao adicionar transação: $e');
+      debugPrint('Erro ao adicionar transação: $e');
       rethrow;
     }
   }
@@ -39,7 +39,7 @@ class TransactionProvider with ChangeNotifier {
       await _dbService.updateTransaction(transaction);
       await loadTransactions(transaction.sectionId);
     } catch (e) {
-      print('Erro ao atualizar transação: $e');
+      debugPrint('Erro ao atualizar transação: $e');
       rethrow;
     }
   }
@@ -49,7 +49,7 @@ class TransactionProvider with ChangeNotifier {
       await _dbService.deleteTransaction(id);
       await loadTransactions(sectionId);
     } catch (e) {
-      print('Erro ao eliminar transação: $e');
+      debugPrint('Erro ao eliminar transação: $e');
       rethrow;
     }
   }

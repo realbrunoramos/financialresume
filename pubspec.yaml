@@ -1,6 +1,6 @@
 name: financialresume
 description: An inteligent application for financial tracking.
-version: 2.0.2
+version: 2.1.0+1
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -9,37 +9,46 @@ dependencies:
   flutter:
     sdk: flutter
   sqflite: ^2.3.0
+  path: ^1.9.0
   path_provider: ^2.1.1
   image_picker: ^1.0.4
-  permission_handler: ^11.0.0
   pdf: ^3.11.3
   open_file: ^3.3.2
-  intl: ^0.19.0
+  intl: 0.20.2
   photo_view: ^0.15.0
   share_plus: ^10.0.0
   google_mlkit_text_recognition: ^0.15.0
   image: ^4.5.4
   uuid: ^4.5.1
   camera: ^0.11.2
-  google_sign_in: ^6.2.1
-  printing: ^5.13.3
   google_generative_ai: ^0.4.0
-  shared_preferences: ^2.3.2
-  mailer: ^6.5.0
-  google_fonts: ^6.2.1
   url_launcher: ^6.1.11
   provider: ^6.1.1
   flutter_local_notifications: ^19.5.0
   timezone: ^0.10.1
   package_info_plus: ^4.2.0
   flutter_svg: ^2.0.9
+  flutter_secure_storage: ^9.2.1
+  http: ^1.2.0
   flutter_localizations:
     sdk: flutter
   flutter_native_splash: ^2.4.6
+  flutter_timezone: ^5.0.2
+  fl_chart: ^0.69.0
+  local_auth: ^2.3.0
+  in_app_purchase: ^3.2.0
+
+  # ── Firebase / Cloud ───────────────────────────────────────────────────────
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
+  firebase_storage: ^12.3.2
+  google_sign_in: ^6.2.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
 
 

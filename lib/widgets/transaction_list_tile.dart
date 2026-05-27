@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../models/transaction.dart';
-import '../services/database_service.dart';
-import '/screens/receipt_list_screen.dart';
+import '../theme/colors.dart';
+import '../theme/app_tokens.dart';
 
 class TransactionListTile extends StatelessWidget {
   final Transaction transaction;
@@ -11,105 +12,162 @@ class TransactionListTile extends StatelessWidget {
   final VoidCallback? onDelete;
 
   const TransactionListTile({
-    Key? key,
+    super.key,
     required this.transaction,
     required this.onTap,
     required this.onLongPress,
     this.onDelete,
-  }) : super(key: key);
+  });
+
+  // ── Ícone por tipo de documento ──────────────────────────────────────────
+  IconData get _docIcon {
+    switch (transaction.docType) {
+      case '1': return Icons.receipt_rounded;
+      case '2': return Icons.description_rounded;
+      case '3': return Icons.check_circle_rounded;
+      default:  return transaction.isCredit
+          ? Icons.arrow_downward_rounded
+          : Icons.arrow_upward_rounded;
+    }
+  }
+
+  // ── Cores do ícone ────────────────────────────────────────────────────────
+  Color _iconBg(bool isDark) {
+    if (transaction.isCredit) {
+      return isDark ? AppColors.success.withAlpha(30) : AppColors.successLight;
+    }
+    return isDark ? AppColors.danger.withAlpha(30) : AppColors.dangerLight;
+  }
+
+  Color get _iconColor =>
+      transaction.isCredit ? AppColors.success : AppColors.danger;
+
+  // ── Subtítulo (data + tipo de doc) ───────────────────────────────────────
+  String _buildSubtitle() {
+    final date = DateFormat('dd MMM yyyy').format(transaction.date);
+    if (transaction.entity.isNotEmpty &&
+        transaction.entity != transaction.description) {
+      return '${transaction.entity} · $date';
+    }
+    return date;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final format = DateFormat('dd/MM/yyyy');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final currency = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
+    final amountStr =
+        '${transaction.isCredit ? '+' : '-'} ${currency.format(transaction.amount)}';
 
-    final isCredit = transaction.isCredit;
-    final icon = isCredit ? Icons.arrow_upward : Icons.arrow_downward;
-    final iconColor = isCredit ? Colors.green : Colors.red;
-    final bgColor = Color.fromARGB(230, 255, 255, 255);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      height: 80,  // Altura fixa e uniforme para todas as tiles
-      child: Card(
-        elevation: 1,  // Sombra sutil para minimalismo
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        color: bgColor,
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTokens.sp16,
+        vertical: 3.0,
+      ),
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          child: Padding(
-            padding: const EdgeInsets.all(12),  // Reduzido para caber no height
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          onLongPress: () {
+            HapticFeedback.mediumImpact();
+            onLongPress();
+          },
+          borderRadius: BorderRadius.circular(AppTokens.radius16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.sp16,
+              vertical: AppTokens.sp12,
+            ),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkCard : AppColors.white,
+              borderRadius: BorderRadius.circular(AppTokens.radius16),
+              border: Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.grey100,
+                width: 1,
+              ),
+              boxShadow: isDark ? null : AppTokens.shadowSm,
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Icon
+                // ── Ícone ─────────────────────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.all(6),
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: iconColor.withOpacity(0.1),
-                    shape: BoxShape.circle,
+                    color: _iconBg(isDark),
+                    borderRadius: BorderRadius.circular(AppTokens.radius12),
                   ),
                   child: Icon(
-                    icon,
-                    color: iconColor,
-                    size: 20,  // Reduzido para caber
+                    _docIcon,
+                    color: _iconColor,
+                    size: 20,
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Content
+                const SizedBox(width: AppTokens.sp12),
+
+                // ── Texto ─────────────────────────────────────────────────
                 Expanded(
-                  child: Flexible(  // Flexible para evitar overflow
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          transaction.description,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w500,  // Leve bold para simplicidade
-                            fontSize: 14,  // Ajustado para caber
-                          ),
-                          maxLines: 1,  // Reduzido para 1 linha para evitar overflow
-                          overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        transaction.description.isNotEmpty
+                            ? transaction.description
+                            : transaction.entity,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? AppColors.darkText : AppColors.dark,
+                          height: 1.3,
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          format.format(transaction.date),
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 11,  // Pequeno para minimalismo
-                          ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: AppTokens.sp2),
+                      Text(
+                        _buildSubtitle(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w400,
+                          color: isDark
+                              ? AppColors.darkSubtext
+                              : AppColors.grey500,
                         ),
-                      ],
-                    ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Trailing Amount
+                const SizedBox(width: AppTokens.sp8),
+
+                // ── Valor + badge ─────────────────────────────────────────
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '${isCredit ? '+' : '-'} ${currency.format(transaction.amount)}',
+                      amountStr,
                       style: TextStyle(
-                        color: iconColor,
-                        fontSize: 14,  // Ajustado
-                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: transaction.isCredit
+                            ? AppColors.success
+                            : AppColors.danger,
+                        letterSpacing: -0.2,
                       ),
                     ),
                     if (transaction.receiptPaths.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          '${transaction.receiptPaths.length} anexo(s)',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 10,
-                          ),
-                        ),
+                      _AttachmentBadge(
+                        count: transaction.receiptPaths.length,
+                        isDark: isDark,
                       ),
                   ],
                 ),
@@ -120,5 +178,39 @@ class TransactionListTile extends StatelessWidget {
       ),
     );
   }
-
 }
+
+// ── Badge de anexos ────────────────────────────────────────────────────────────
+class _AttachmentBadge extends StatelessWidget {
+  final int count;
+  final bool isDark;
+
+  const _AttachmentBadge({required this.count, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppTokens.sp4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.attach_file_rounded,
+            size: 11,
+            color: isDark ? AppColors.darkSubtext : AppColors.grey400,
+          ),
+          const SizedBox(width: 2),
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: isDark ? AppColors.darkSubtext : AppColors.grey400,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

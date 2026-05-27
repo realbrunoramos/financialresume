@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:math';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image/image.dart' as img;
 
@@ -9,8 +8,12 @@ class FileService {
   Future<String> saveImage(File image, {bool binarize = false}) async {
     final inputImage = InputImage.fromFile(image);
     final textRecognizer = TextRecognizer();
-    final recognizedText = await textRecognizer.processImage(inputImage);
-    textRecognizer.close();
+    late final RecognizedText recognizedText;
+    try {
+      recognizedText = await textRecognizer.processImage(inputImage);
+    } finally {
+      await textRecognizer.close();
+    }
 
     // Get text block coordinates for corner detection
     double minX = double.infinity, minY = double.infinity;
@@ -52,7 +55,7 @@ class FileService {
 
       // Adjust crop dimensions to stay within image bounds
       cropX = cropX.clamp(0, processedImage.width - 1);
-      //cropwards: cropY = cropY.clamp(0, processedImage.height - 1);
+      cropY = cropY.clamp(0, processedImage.height - 1);
       cropWidth = cropWidth.clamp(1, processedImage.width - cropX);
       cropHeight = cropHeight.clamp(1, processedImage.height - cropY);
 
@@ -119,11 +122,11 @@ class FileService {
   }
 
   Future<void> downloadImage(String path) async {
-    if (await Permission.storage.request().isGranted) {
-      final downloadsDir = await getExternalStorageDirectory();
-      final fileName = path.split('/').last;
-      final newPath = '${downloadsDir!.path}/$fileName';
-      await File(path).copy(newPath);
-    }
+    // getExternalStorageDirectory() returns the app's private external folder
+    // which requires no runtime permission on any Android version.
+    final dir = await getExternalStorageDirectory();
+    if (dir == null) return;
+    final fileName = path.split('/').last;
+    await File(path).copy('${dir.path}/$fileName');
   }
 }
